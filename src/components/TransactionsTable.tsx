@@ -37,7 +37,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   title,
   typeFilter = 'all',
 }) => {
-  const { canEditDeleteTransactions } = useAuth();
+  const { canEditTransactions, canDeleteTransactions } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
@@ -343,25 +343,29 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
 
                     {/* Acciones */}
                     <td className="py-3 px-3 text-right whitespace-nowrap">
-                      {canEditDeleteTransactions ? (
+                      {canEditTransactions || canDeleteTransactions ? (
                         <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 transition">
-                          <button
-                            onClick={() => onEdit(tx)}
-                            title="Corregir / Editar asiento (Director)"
-                            className="p-1 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded transition"
-                          >
-                            <Edit3 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => onDelete(tx.id)}
-                            title="Borrar asiento (Director)"
-                            className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {canEditTransactions && (
+                            <button
+                              onClick={() => onEdit(tx)}
+                              title="Corregir / Editar asiento (Director / Administrativo)"
+                              className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded transition"
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {canDeleteTransactions && (
+                            <button
+                              onClick={() => onDelete(tx.id)}
+                              title="Borrar asiento (Director)"
+                              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       ) : (
-                        <div className="flex items-center justify-end pr-2 text-slate-600" title="Solo el Director de Proyecto puede corregir o borrar asientos">
+                        <div className="flex items-center justify-end pr-2 text-slate-600" title="Solo Director y Administrativo pueden modificar asientos">
                           <Lock className="h-3.5 w-3.5" />
                         </div>
                       )}

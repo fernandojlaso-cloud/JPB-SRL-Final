@@ -107,6 +107,230 @@ export const downloadExcelTemplate = () => {
 };
 
 /**
+ * Downloads a sample Excel template for construction budgets / rubros
+ */
+export const downloadBudgetExcelTemplate = () => {
+  const wb = XLSX.utils.book_new();
+
+  const templateData = [
+    {
+      'Código': '101',
+      'Rubro / Contratista': 'Mano de Obra (M.O.)',
+      'Tipo (Egreso/Ingreso)': 'Egreso',
+      'Presupuesto en Pesos ($)': 5000000,
+      'Presupuesto en Dólares (u$s)': 28000,
+      'Notas / Alcance': 'Presupuesto total estimado mano de obra contratada',
+    },
+    {
+      'Código': '102',
+      'Rubro / Contratista': 'Materiales y Acopios',
+      'Tipo (Egreso/Ingreso)': 'Egreso',
+      'Presupuesto en Pesos ($)': 8500000,
+      'Presupuesto en Dólares (u$s)': 48000,
+      'Notas / Alcance': 'Hierro, cemento, ladrillos, terminaciones',
+    },
+    {
+      'Código': '103',
+      'Rubro / Contratista': 'Honorarios y Dirección de Obra',
+      'Tipo (Egreso/Ingreso)': 'Egreso',
+      'Presupuesto en Pesos ($)': 2500000,
+      'Presupuesto en Dólares (u$s)': 14000,
+      'Notas / Alcance': 'Honorarios profesionales y supervisión técnica',
+    },
+    {
+      'Código': '104',
+      'Rubro / Contratista': 'Logística, Fletes y Volquetes',
+      'Tipo (Egreso/Ingreso)': 'Egreso',
+      'Presupuesto en Pesos ($)': 800000,
+      'Presupuesto en Dólares (u$s)': 4500,
+      'Notas / Alcance': 'Retiro de escombros y fletes a obra',
+    },
+    {
+      'Código': '201',
+      'Rubro / Contratista': 'Walter M.O. y materiales',
+      'Tipo (Egreso/Ingreso)': 'Egreso',
+      'Presupuesto en Pesos ($)': 1800000,
+      'Presupuesto en Dólares (u$s)': 10000,
+      'Notas / Alcance': 'Subcontratista Walter albañilería',
+    },
+    {
+      'Código': '202',
+      'Rubro / Contratista': 'Rogelio Fioce Techista',
+      'Tipo (Egreso/Ingreso)': 'Egreso',
+      'Presupuesto en Pesos ($)': 1200000,
+      'Presupuesto en Dólares (u$s)': 6800,
+      'Notas / Alcance': 'Subcontratista techos y zinguería',
+    },
+    {
+      'Código': '301',
+      'Rubro / Contratista': 'Aportes de Capital / Comitente',
+      'Tipo (Egreso/Ingreso)': 'Ingreso',
+      'Presupuesto en Pesos ($)': 19000000,
+      'Presupuesto en Dólares (u$s)': 105000,
+      'Notas / Alcance': 'Fondo total previsto comitente',
+    },
+  ];
+
+  const ws = XLSX.utils.json_to_sheet(templateData);
+  ws['!cols'] = [
+    { wch: 12 },
+    { wch: 35 },
+    { wch: 22 },
+    { wch: 25 },
+    { wch: 25 },
+    { wch: 45 },
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Presupuesto_Obra');
+  XLSX.writeFile(wb, 'Plantilla_Presupuesto_Obra.xlsx');
+};
+
+export interface ParsedBudgetRowResult {
+  code: string;
+  categoryName: string;
+  type: 'ingreso' | 'egreso';
+  budgetedARS: number;
+  budgetedUSD: number;
+  notes?: string;
+  matchedCategoryId?: string;
+  isValid: boolean;
+  errors: string[];
+}
+
+/**
+ * Parses an Excel or CSV file buffer specifically for Budgets and Cost Centers
+ */
+export const parseBudgetUploadedFile = (
+  data: ArrayBuffer,
+  defaultCategories: AccountCategory[] = []
+): ParsedBudgetRowResult[] => {
+  let workbook: XLSX.WorkBook;
+  try {
+    workbook = XLSX.read(data, { type: 'array', cellDates: true, cellNF: true });
+  } catch {
+    throw new Error('No se pudo abrir el archivo Excel de presupuesto. Verifica que no esté dañado.');
+  }
+
+  if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
+    throw new Error('El archivo Excel no contiene ninguna hoja válida.');
+  }
+
+  const results: ParsedBudgetRowResult[] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+    const worksheet = workbook.Sheets[sheetName];
+    if (!worksheet) continue;
+
+    const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true, defval: '' });
+    const formattedRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: '' });
+
+    if (!rawRows || rawRows.length < 1) continue;
+
+    // Find header row
+    let headerIndex = 0;
+    let highestScore = 0;
+
+    for (let i = 0; i < Math.min(rawRows.length, 25); i++) {
+      const row = rawRows[i];
+      if (!Array.isArray(row) || row.length === 0) continue;
+      let score = 0;
+      const words = row.map(c => normalizeText(c));
+      for (const w of words) {
+        if (!w) continue;
+        if (w.includes('rubro') || w.includes('item') || w.includes('cuenta') || w.includes('contratista') || w.includes('descripcion')) score += 5;
+        if (w.includes('presupuesto') || w.includes('monto') || w.includes('importe') || w.includes('total') || w === '$' || w === 'ars') score += 5;
+        if (w.includes('u$s') || w.includes('usd') || w.includes('dolar')) score += 5;
+        if (w.includes('codigo') || w.includes('cod') || w === 'nro') score += 4;
+        if (w.includes('tipo') || w.includes('notas') || w.includes('observaciones')) score += 2;
+      }
+      if (score > highestScore) {
+        highestScore = score;
+        headerIndex = i;
+      }
+    }
+
+    const headerRow = rawRows[headerIndex] || [];
+    const headers = Array.isArray(headerRow) ? headerRow.map(h => normalizeText(h)) : [];
+
+    const findColIdx = (keywords: string[]) => {
+      for (const kw of keywords) {
+        const norm = normalizeText(kw);
+        const idx = headers.findIndex(h => h.includes(norm));
+        if (idx !== -1) return idx;
+      }
+      return -1;
+    };
+
+    const codeIdx = findColIdx(['codigo', 'cod', 'nro', 'item']);
+    const rubroIdx = findColIdx(['rubro', 'cuenta', 'contratista', 'nombre', 'descripcion', 'concepto']);
+    const typeIdx = findColIdx(['tipo', 'origen', 'clasificacion']);
+    const arsIdx = findColIdx(['pesos', 'presupuesto $', 'presupuesto ars', 'monto $', 'importe $', '$', 'ars', 'presupuesto en pesos']);
+    const usdIdx = findColIdx(['dolares', 'presupuesto u$s', 'presupuesto usd', 'monto u$s', 'importe u$s', 'u$s', 'usd', 'presupuesto en dolares']);
+    const notesIdx = findColIdx(['notas', 'observaciones', 'alcance', 'detalle']);
+
+    for (let r = headerIndex + 1; r < rawRows.length; r++) {
+      const row = rawRows[r];
+      const fRow = formattedRows[r] || [];
+      if (!Array.isArray(row) || row.length === 0) continue;
+
+      const rowStr = row.map(c => normalizeText(c)).join(' ');
+      if (!rowStr || rowStr.includes('total general') || rowStr.includes('subtotal')) continue;
+
+      const codeRaw = codeIdx !== -1 ? String(row[codeIdx] || '').trim() : '';
+      const rubroRaw = rubroIdx !== -1 ? String(row[rubroIdx] || '').trim() : '';
+      if (!rubroRaw && !codeRaw) continue;
+
+      const categoryName = rubroRaw || `Rubro ${codeRaw}`;
+      const code = codeRaw || `RUB-${r}`;
+
+      // Extract ARS and USD
+      let budgetedARS = 0;
+      let budgetedUSD = 0;
+
+      if (arsIdx !== -1 && row[arsIdx] !== undefined) {
+        budgetedARS = typeof row[arsIdx] === 'number' ? row[arsIdx] : parseArgentineNumber(fRow[arsIdx] || row[arsIdx]);
+      }
+      if (usdIdx !== -1 && row[usdIdx] !== undefined) {
+        budgetedUSD = typeof row[usdIdx] === 'number' ? row[usdIdx] : parseArgentineNumber(fRow[usdIdx] || row[usdIdx]);
+      }
+
+      // Auto-fallback if one is provided
+      if (budgetedARS <= 0 && budgetedUSD <= 0) {
+        budgetedARS = 0;
+        budgetedUSD = 0;
+      }
+
+      const typeRaw = typeIdx !== -1 ? normalizeText(row[typeIdx]) : '';
+      const type: 'ingreso' | 'egreso' = typeRaw.includes('ingreso') || typeRaw.includes('aporte') ? 'ingreso' : 'egreso';
+      const notes = notesIdx !== -1 ? String(row[notesIdx] || '').trim() : '';
+
+      // Match category
+      const matchedCat = defaultCategories.find(c => {
+        const cCode = normalizeText(c.code);
+        const cName = normalizeText(c.name);
+        const targetName = normalizeText(categoryName);
+        const targetCode = normalizeText(code);
+        return (targetCode && cCode === targetCode) || (targetName && cName.includes(targetName)) || (targetName && targetName.includes(cName));
+      });
+
+      results.push({
+        code,
+        categoryName,
+        type,
+        budgetedARS,
+        budgetedUSD,
+        notes,
+        matchedCategoryId: matchedCat?.id,
+        isValid: true,
+        errors: [],
+      });
+    }
+  }
+
+  return results;
+};
+
+/**
  * Helper to normalize string for comparison (removes accents, lowercase, trim)
  * Guaranteed to NEVER return null/undefined and always return a safe string.
  */

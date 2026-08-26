@@ -243,117 +243,134 @@ export const MacroOverview: React.FC<MacroOverviewProps> = ({
           <span className="text-xs text-slate-400">Haz clic en cualquier obra para abrir su detalle</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {projectStats.map((p) => {
-            const income = currency === 'ARS' ? p.incomeARS : p.incomeUSD;
-            const expense = currency === 'ARS' ? p.expenseARS : p.expenseUSD;
-            const balance = currency === 'ARS' ? p.balanceARS : p.balanceUSD;
-            const budget = currency === 'ARS' ? p.budgetARS : p.budgetUSD;
-            const progress = currency === 'ARS' ? p.progressARS : p.progressUSD;
+        {projects.length === 0 ? (
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-8 text-center">
+            <Building2 className="h-10 w-10 text-slate-600 mx-auto mb-3" />
+            <h4 className="text-base font-bold text-slate-200">No hay obras registradas</h4>
+            <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 mb-4">
+              Aún no se han creado frentes de obra o han sido eliminados. Puedes crear una nueva obra o importar datos desde una planilla Excel.
+            </p>
+            <button
+              onClick={onNewProject}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow transition"
+            >
+              <Building2 className="h-4 w-4" />
+              <span>+ Crear Primera Obra</span>
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {projectStats.map((p) => {
+              const income = currency === 'ARS' ? p.incomeARS : p.incomeUSD;
+              const expense = currency === 'ARS' ? p.expenseARS : p.expenseUSD;
+              const balance = currency === 'ARS' ? p.balanceARS : p.balanceUSD;
+              const budget = currency === 'ARS' ? p.budgetARS : p.budgetUSD;
+              const progress = currency === 'ARS' ? p.progressARS : p.progressUSD;
 
-            return (
-              <div
-                key={p.id}
-                onClick={() => onSelectProject(p.id)}
-                className="bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-2xl p-5 shadow-lg hover:shadow-amber-500/5 transition cursor-pointer group flex flex-col justify-between"
-              >
-                <div>
-                  {/* Card Header */}
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="flex items-start gap-2.5">
-                      <div className="mt-0.5">
-                        <JpbSrlLogo variant="badge" size="sm" />
+              return (
+                <div
+                  key={p.id}
+                  onClick={() => onSelectProject(p.id)}
+                  className="bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-2xl p-5 shadow-lg hover:shadow-amber-500/5 transition cursor-pointer group flex flex-col justify-between"
+                >
+                  <div>
+                    {/* Card Header */}
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex items-start gap-2.5">
+                        <div className="mt-0.5">
+                          <JpbSrlLogo variant="badge" size="sm" />
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-mono font-bold text-amber-400 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-800/40">
+                            {p.code}
+                          </span>
+                          <h4 className="font-bold text-base text-white group-hover:text-amber-300 transition mt-1">
+                            {p.name}
+                          </h4>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-[10px] uppercase font-mono font-bold text-amber-400 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-800/40">
-                          {p.code}
+                      <div className="p-1.5 rounded-lg bg-slate-800 text-slate-400 group-hover:text-amber-400 group-hover:bg-amber-500/10 transition">
+                        <ChevronRight className="h-4 w-4" />
+                      </div>
+                    </div>
+
+                    {p.address && <p className="text-xs text-slate-400 mb-4">{p.address}</p>}
+
+                    {/* Financial Mini Grid */}
+                    <div className="space-y-2 text-xs bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 mb-4">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Ingresos Totales:</span>
+                        <span className="font-mono font-bold text-emerald-400">{formatCurrency(income, currency)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Egresos / Costos:</span>
+                        <span className="font-mono font-bold text-rose-400">{formatCurrency(expense, currency)}</span>
+                      </div>
+                      <div className="flex justify-between pt-1 border-t border-slate-800">
+                        <span className="font-semibold text-slate-300">Saldo Disponible:</span>
+                        <span className={`font-mono font-bold ${balance >= 0 ? 'text-amber-400' : 'text-rose-500'}`}>
+                          {formatCurrency(balance, currency)}
                         </span>
-                        <h4 className="font-bold text-base text-white group-hover:text-amber-300 transition mt-1">
-                          {p.name}
-                        </h4>
                       </div>
                     </div>
-                    <div className="p-1.5 rounded-lg bg-slate-800 text-slate-400 group-hover:text-amber-400 group-hover:bg-amber-500/10 transition">
-                      <ChevronRight className="h-4 w-4" />
-                    </div>
                   </div>
 
-                  {p.address && <p className="text-xs text-slate-400 mb-4">{p.address}</p>}
+                  {/* Progress Bar & Footer */}
+                  <div>
+                    <div className="flex justify-between text-[11px] text-slate-400 mb-1">
+                      <span>Avance Presupuestario:</span>
+                      <span className="font-bold text-slate-200">{progress.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          progress > 100 ? 'bg-rose-500' : progress > 80 ? 'bg-amber-500' : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.min(progress, 100)}%` }}
+                      />
+                    </div>
 
-                  {/* Financial Mini Grid */}
-                  <div className="space-y-2 text-xs bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 mb-4">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Ingresos Totales:</span>
-                      <span className="font-mono font-bold text-emerald-400">{formatCurrency(income, currency)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Egresos / Costos:</span>
-                      <span className="font-mono font-bold text-rose-400">{formatCurrency(expense, currency)}</span>
-                    </div>
-                    <div className="flex justify-between pt-1 border-t border-slate-800">
-                      <span className="font-semibold text-slate-300">Saldo Disponible:</span>
-                      <span className={`font-mono font-bold ${balance >= 0 ? 'text-amber-400' : 'text-rose-500'}`}>
-                        {formatCurrency(balance, currency)}
-                      </span>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2">
+                      <span>{p.txCount} movimientos</span>
+                      <div className="flex items-center gap-2">
+                        {onEditProject && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const rawProj = projects.find(pr => pr.id === p.id);
+                              if (rawProj) onEditProject(rawProj);
+                            }}
+                            className="p-1 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded transition"
+                            title="Editar obra"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {onDeleteProject && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`¿Estás seguro de eliminar la obra "${p.name}"?`)) {
+                                onDeleteProject(p.id);
+                              }
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition"
+                            title="Eliminar obra"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        <span>Presupuesto: {formatCurrency(budget, currency)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-
-                {/* Progress Bar & Footer */}
-                <div>
-                  <div className="flex justify-between text-[11px] text-slate-400 mb-1">
-                    <span>Avance Presupuestario:</span>
-                    <span className="font-bold text-slate-200">{progress.toFixed(1)}%</span>
-                  </div>
-                  <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        progress > 100 ? 'bg-rose-500' : progress > 80 ? 'bg-amber-500' : 'bg-emerald-500'
-                      }`}
-                      style={{ width: `${Math.min(progress, 100)}%` }}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2">
-                    <span>{p.txCount} movimientos</span>
-                    <div className="flex items-center gap-2">
-                      {onEditProject && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const rawProj = projects.find(pr => pr.id === p.id);
-                            if (rawProj) onEditProject(rawProj);
-                          }}
-                          className="p-1 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded transition"
-                          title="Editar obra"
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                      {onDeleteProject && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm(`¿Estás seguro de eliminar la obra "${p.name}"?`)) {
-                              onDeleteProject(p.id);
-                            }
-                          }}
-                          className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition"
-                          title="Eliminar obra"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                      <span>Presupuesto: {formatCurrency(budget, currency)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

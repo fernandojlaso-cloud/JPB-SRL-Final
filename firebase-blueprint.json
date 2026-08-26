@@ -100,6 +100,28 @@
         "createdAt": { "type": "string" }
       },
       "required": ["uid", "email", "passwordHash"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Registro de auditoría y actividad del sistema",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "action": { "type": "string", "enum": ["create", "update", "delete", "import", "backup_export", "backup_restore", "user_approve", "user_role_change", "user_status_change"] },
+        "entity": { "type": "string", "enum": ["obra", "ingreso", "egreso", "rubro", "presupuesto", "usuario", "sistema"] },
+        "entityId": { "type": "string" },
+        "entityName": { "type": "string" },
+        "projectName": { "type": "string" },
+        "projectId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "userName": { "type": "string" },
+        "userRole": { "type": "string" },
+        "details": { "type": "string" },
+        "amountARS": { "type": "number" },
+        "amountUSD": { "type": "number" }
+      },
+      "required": ["id", "timestamp", "action", "entity", "userEmail", "userName", "userRole", "details"]
     }
   },
   "firestore": {
@@ -126,6 +148,10 @@
     "/auth_accounts/{accountId}": {
       "schema": "AuthAccount",
       "description": "Colección de credenciales y hashes de cuentas registradas"
+    },
+    "/activity_logs/{logId}": {
+      "schema": "ActivityLog",
+      "description": "Colección de logs de auditoría y actividad"
     }
   }
 }

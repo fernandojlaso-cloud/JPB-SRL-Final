@@ -34,6 +34,30 @@ export const formatNumber = (amount: number | undefined | null, decimals: number
   }).format(amount);
 };
 
+export const formatDisplayNumber = (value: number | string | undefined | null, decimals: number = 2): string => {
+  const num = typeof value === 'number' ? value : parseArgentineNumber(value);
+  if (isNaN(num) || num === 0) return '0,00';
+  return new Intl.NumberFormat('es-AR', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(num);
+};
+
+export const formatInputLive = (val: string | number): string => {
+  const num = typeof val === 'number' ? val : parseArgentineNumber(val);
+  if (num <= 0) return '';
+  // Check if integer or has decimals
+  if (num % 1 === 0) {
+    return new Intl.NumberFormat('es-AR', {
+      maximumFractionDigits: 0,
+    }).format(num);
+  }
+  return new Intl.NumberFormat('es-AR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
+};
+
 export const parseArgentineNumber = (value: string | number | undefined | null): number => {
   if (value === undefined || value === null) return 0;
   if (typeof value === 'number') return isNaN(value) ? 0 : value;

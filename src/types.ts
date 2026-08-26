@@ -85,6 +85,23 @@ export interface DeviationAnalysis {
   riskLevel: 'normal' | 'alerta' | 'critico';
 }
 
+export interface ActivityLog {
+  id: string;
+  timestamp: string; // ISO string
+  action: 'create' | 'update' | 'delete' | 'import' | 'backup_export' | 'backup_restore' | 'user_approve' | 'user_role_change' | 'user_status_change';
+  entity: 'obra' | 'ingreso' | 'egreso' | 'rubro' | 'presupuesto' | 'usuario' | 'sistema';
+  entityId?: string;
+  entityName?: string;
+  projectName?: string;
+  projectId?: string;
+  userEmail: string;
+  userName: string;
+  userRole: UserRole;
+  details: string;
+  amountARS?: number;
+  amountUSD?: number;
+}
+
 export interface SystemBackupData {
   version: string;
   exportDate: string;
@@ -94,4 +111,5 @@ export interface SystemBackupData {
   budgets: BudgetEstimate[];
   transactions: Transaction[];
   users?: UserProfile[];
+  activityLogs?: ActivityLog[];
 }

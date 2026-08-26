@@ -1,7 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { X, Save, DollarSign, Calendar, Tag, FileText, User, CreditCard, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { 
+  X, 
+  Save, 
+  DollarSign, 
+  Calendar, 
+  Tag, 
+  FileText, 
+  User, 
+  CreditCard, 
+  HelpCircle,
+  Search,
+  ChevronDown,
+  Check
+} from 'lucide-react';
 import { Transaction, Project, AccountCategory, TransactionType } from '../types';
-import { parseArgentineNumber, formatCurrency } from '../utils/formatters';
+import { parseArgentineNumber, formatCurrency, formatNumber } from '../utils/formatters';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -30,12 +43,18 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [concept, setConcept] = useState<string>('');
   const [amountARS, setAmountARS] = useState<string>('');
-  const [exchangeRate, setExchangeRate] = useState<string>('180.00');
+  const [exchangeRate, setExchangeRate] = useState<string>('180,00');
   const [amountUSD, setAmountUSD] = useState<string>('');
   const [payerOrRecipient, setPayerOrRecipient] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<string>('Transferencia');
   const [status, setStatus] = useState<'pagado' | 'pendiente' | 'previsto'>('pagado');
   const [notes, setNotes] = useState<string>('');
+
+  // Searchable Category Picker State
+  const [categorySearchQuery, setCategorySearchQuery] = useState<string>('');
+  const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState<boolean>(false);
+  const categoryPickerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Sync with editing item or defaults
   useEffect(() => {
@@ -45,9 +64,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setCategoryId(editingTransaction.categoryId);
       setDate(editingTransaction.date);
       setConcept(editingTransaction.concept);
-      setAmountARS(String(editingTransaction.amountARS));
-      setExchangeRate(String(editingTransaction.exchangeRate));
-      setAmountUSD(String(editingTransaction.amountUSD));
+      setAmountARS(editingTransaction.amountARS ? formatNumber(editingTransaction.amountARS, 2) : '');
+      setExchangeRate(editingTransaction.exchangeRate ? formatNumber(editingTransaction.exchangeRate, 2) : '180,00');
+      setAmountUSD(editingTransaction.amountUSD ? formatNumber(editingTransaction.amountUSD, 2) : '');
       setPayerOrRecipient(editingTransaction.payerOrRecipient || '');
       setPaymentMethod(editingTransaction.paymentMethod || 'Transferencia');
       setStatus(editingTransaction.status || 'pagado');
@@ -63,31 +82,63 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setDate(new Date().toISOString().split('T')[0]);
       setConcept('');
       setAmountARS('');
-      setExchangeRate(String(currentProj?.defaultExchangeRate || 180.0));
+      setExchangeRate(currentProj?.defaultExchangeRate ? formatNumber(currentProj.defaultExchangeRate, 2) : '180,00');
       setAmountUSD('');
       setPayerOrRecipient('');
       setPaymentMethod('Transferencia');
       setStatus('pagado');
       setNotes('');
     }
+    setCategorySearchQuery('');
+    setIsCategoryPickerOpen(false);
   }, [editingTransaction, initialType, defaultProjectId, isOpen, projects, categories]);
+
+  // Click outside to close category picker
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (categoryPickerRef.current && !categoryPickerRef.current.contains(event.target as Node)) {
+        setIsCategoryPickerOpen(false);
+      }
+    };
+    if (isCategoryPickerOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isCategoryPickerOpen]);
+
+  // Auto-focus search input when category dropdown opens
+  useEffect(() => {
+    if (isCategoryPickerOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isCategoryPickerOpen]);
 
   // When type changes, select first valid category
   const handleTypeChange = (newType: TransactionType) => {
     setType(newType);
+    setCategorySearchQuery('');
     const validCats = categories.filter(c => c.type === newType);
     if (!validCats.some(c => c.id === categoryId)) {
       setCategoryId(validCats[0]?.id || '');
     }
   };
 
-  // Smart calculations
+  // Smart calculations with Argentine decimals and thousand dots
   const handleARSChange = (val: string) => {
     setAmountARS(val);
     const ars = parseArgentineNumber(val);
     const tc = parseArgentineNumber(exchangeRate);
     if (tc > 0 && ars > 0) {
-      setAmountUSD((ars / tc).toFixed(2));
+      setAmountUSD(formatNumber(ars / tc, 2));
+    }
+  };
+
+  const handleARSBlur = () => {
+    const ars = parseArgentineNumber(amountARS);
+    if (ars > 0) {
+      setAmountARS(formatNumber(ars, 2));
     }
   };
 
@@ -98,10 +149,17 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     const usd = parseArgentineNumber(amountUSD);
     if (tc > 0) {
       if (ars > 0) {
-        setAmountUSD((ars / tc).toFixed(2));
+        setAmountUSD(formatNumber(ars / tc, 2));
       } else if (usd > 0) {
-        setAmountARS((usd * tc).toFixed(2));
+        setAmountARS(formatNumber(usd * tc, 2));
       }
+    }
+  };
+
+  const handleTCBlur = () => {
+    const tc = parseArgentineNumber(exchangeRate);
+    if (tc > 0) {
+      setExchangeRate(formatNumber(tc, 2));
     }
   };
 
@@ -110,11 +168,32 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     const usd = parseArgentineNumber(val);
     const tc = parseArgentineNumber(exchangeRate);
     if (tc > 0 && usd > 0) {
-      setAmountARS((usd * tc).toFixed(2));
+      setAmountARS(formatNumber(usd * tc, 2));
     }
   };
 
-  const filteredCategories = categories.filter(c => c.type === type);
+  const handleUSDBlur = () => {
+    const usd = parseArgentineNumber(amountUSD);
+    if (usd > 0) {
+      setAmountUSD(formatNumber(usd, 2));
+    }
+  };
+
+  const filteredCategories = useMemo(() => {
+    const list = categories.filter(c => c.type === type);
+    if (!categorySearchQuery.trim()) return list;
+
+    const q = categorySearchQuery.toLowerCase().trim();
+    return list.filter(c => 
+      c.name.toLowerCase().includes(q) || 
+      c.code.toLowerCase().includes(q) ||
+      (c.description && c.description.toLowerCase().includes(q))
+    );
+  }, [categories, type, categorySearchQuery]);
+
+  const selectedCategory = useMemo(() => {
+    return categories.find(c => c.id === categoryId) || filteredCategories[0];
+  }, [categories, categoryId, filteredCategories]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,7 +214,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       {
         projectId,
         type,
-        categoryId: categoryId || filteredCategories[0]?.id || 'default',
+        categoryId: categoryId || selectedCategory?.id || 'default',
         date,
         concept: concept.trim(),
         amountARS: ars,
@@ -170,7 +249,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 {editingTransaction ? 'Editar Registro' : type === 'ingreso' ? 'Nuevo Origen de Fondos (Ingreso)' : 'Nueva Aplicación de Fondos (Egreso)'}
               </h3>
               <p className="text-xs text-slate-400">
-                {editingTransaction ? 'Actualiza los valores del movimiento' : 'Carga un nuevo comprobante con imputación bimonetaria'}
+                {editingTransaction ? 'Actualiza los valores del movimiento' : 'Carga un nuevo comprobante con buscador de rubros e imputación bimonetaria'}
               </p>
             </div>
           </div>
@@ -238,23 +317,120 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               </select>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Rubro / Cuenta de Imputación <span className="text-rose-400">*</span>
-              </label>
-              <select
-                id="tx-category-select"
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-400"
-                required
+            {/* BUSCADOR DE RUBROS / CUENTA DE IMPUTACION */}
+            <div className="relative" ref={categoryPickerRef}>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-300">
+                  Rubro / Cuenta de Imputación <span className="text-rose-400">*</span>
+                </label>
+                {type === 'egreso' && (
+                  <span className="text-[10px] text-amber-400 font-medium">Buscador integrado</span>
+                )}
+              </div>
+
+              {/* Selected Rubro Trigger Button */}
+              <button
+                type="button"
+                id="tx-category-picker-trigger"
+                onClick={() => setIsCategoryPickerOpen(!isCategoryPickerOpen)}
+                className="w-full bg-slate-950 border border-slate-700 hover:border-amber-500/60 rounded-lg px-3 py-2 text-left flex items-center justify-between text-sm text-slate-100 focus:outline-none focus:border-amber-400 transition group"
               >
-                {filteredCategories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.code} - {c.name}
-                  </option>
-                ))}
-              </select>
+                <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                  <span
+                    className="h-3 w-3 rounded-full shrink-0"
+                    style={{ backgroundColor: selectedCategory?.color || '#F59E0B' }}
+                  />
+                  <span className="font-mono text-xs font-bold text-amber-400 bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-800/40 shrink-0">
+                    {selectedCategory?.code || 'RUB'}
+                  </span>
+                  <span className="font-semibold text-slate-200 truncate">
+                    {selectedCategory?.name || 'Seleccionar Rubro'}
+                  </span>
+                </div>
+                <ChevronDown className={`h-4 w-4 text-slate-400 group-hover:text-amber-400 transition shrink-0 ${isCategoryPickerOpen ? 'rotate-180 text-amber-400' : ''}`} />
+              </button>
+
+              {/* Category Searchable Dropdown Popup */}
+              {isCategoryPickerOpen && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden animate-fadeIn">
+                  
+                  {/* Search Input */}
+                  <div className="p-2 border-b border-slate-800 bg-slate-950 flex items-center gap-2">
+                    <Search className="h-4 w-4 text-slate-400 shrink-0 ml-1" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={categorySearchQuery}
+                      onChange={(e) => setCategorySearchQuery(e.target.value)}
+                      placeholder={type === 'egreso' ? "Buscar rubro por nombre o código (ej: Walter, Techista, 101, Pintura)..." : "Buscar cuenta de ingreso..."}
+                      className="w-full bg-transparent text-xs text-slate-100 placeholder-slate-500 focus:outline-none py-1"
+                    />
+                    {categorySearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setCategorySearchQuery('')}
+                        className="p-1 text-slate-400 hover:text-white rounded transition"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filtered Category Items List */}
+                  <div className="max-h-56 overflow-y-auto divide-y divide-slate-800/60 p-1">
+                    {filteredCategories.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-slate-400">
+                        No se encontraron rubros con &ldquo;{categorySearchQuery}&rdquo;
+                      </div>
+                    ) : (
+                      filteredCategories.map((c) => {
+                        const isSelected = c.id === categoryId;
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              setCategoryId(c.id);
+                              setIsCategoryPickerOpen(false);
+                              setCategorySearchQuery('');
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between text-xs transition ${
+                              isSelected
+                                ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40'
+                                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                              <span
+                                className="h-2.5 w-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: c.color }}
+                              />
+                              <span className="font-mono font-bold text-amber-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 shrink-0">
+                                {c.code}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="truncate font-medium text-slate-200">{c.name}</p>
+                                {c.description && (
+                                  <p className="text-[10px] text-slate-400 truncate">{c.description}</p>
+                                )}
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <Check className="h-4 w-4 text-amber-400 shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Summary Bar */}
+                  <div className="px-3 py-1.5 bg-slate-950 border-t border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
+                    <span>{filteredCategories.length} rubros disponibles</span>
+                    <span className="text-slate-500 font-mono">Escribe para filtrar</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -301,67 +477,86 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Monto ARS */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                  Monto en Pesos ($ ARS)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    Monto en Pesos ($ ARS)
+                  </label>
+                  {parseArgentineNumber(amountARS) > 0 && (
+                    <span className="text-[10px] font-mono text-slate-400">
+                      $ {formatNumber(parseArgentineNumber(amountARS), 2)}
+                    </span>
+                  )}
+                </div>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                  <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">$</span>
                   <input
-                    id="tx-amount-ars-input"
-                    type="number"
-                    step="any"
+                    id="tx-amount-ars"
+                    type="text"
                     value={amountARS}
                     onChange={(e) => handleARSChange(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-7 pr-3 py-2 font-mono text-sm text-white font-bold focus:outline-none focus:border-amber-400"
+                    onBlur={handleARSBlur}
+                    placeholder="0,00"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-sm font-mono text-slate-100 font-bold focus:outline-none focus:border-amber-400"
                   />
                 </div>
               </div>
 
-              {/* Tipo de Cambio */}
               <div>
-                <label className="block text-[11px] font-semibold text-amber-300 mb-1">
-                  Tipo de Cambio (t.c.)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    Tipo de Cambio (t.c.)
+                  </label>
+                  {parseArgentineNumber(exchangeRate) > 0 && (
+                    <span className="text-[10px] font-mono text-amber-300/80">
+                      t.c. {formatNumber(parseArgentineNumber(exchangeRate), 2)}
+                    </span>
+                  )}
+                </div>
                 <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">t.c.</span>
                   <input
-                    id="tx-tc-input"
-                    type="number"
-                    step="0.1"
+                    id="tx-exchange-rate"
+                    type="text"
                     value={exchangeRate}
                     onChange={(e) => handleTCChange(e.target.value)}
-                    placeholder="180.00"
-                    className="w-full bg-slate-900 border border-amber-500/50 rounded-lg px-3 py-2 font-mono text-sm text-amber-300 font-bold focus:outline-none focus:border-amber-400"
+                    onBlur={handleTCBlur}
+                    placeholder="1.500,00"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm font-mono text-amber-300 font-bold focus:outline-none focus:border-amber-400"
                   />
                 </div>
               </div>
 
-              {/* Monto USD */}
               <div>
-                <label className="block text-[11px] font-semibold text-emerald-300 mb-1">
-                  Monto en Dólares (u$s USD)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    Monto en Dólares (u$s USD)
+                  </label>
+                  {parseArgentineNumber(amountUSD) > 0 && (
+                    <span className="text-[10px] font-mono text-emerald-400">
+                      u$s {formatNumber(parseArgentineNumber(amountUSD), 2)}
+                    </span>
+                  )}
+                </div>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400 font-bold text-xs">u$s</span>
+                  <span className="absolute left-3 top-2.5 text-xs text-emerald-400 font-bold">u$s</span>
                   <input
-                    id="tx-amount-usd-input"
-                    type="number"
-                    step="any"
+                    id="tx-amount-usd"
+                    type="text"
                     value={amountUSD}
                     onChange={(e) => handleUSDChange(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full bg-slate-900 border border-emerald-500/50 rounded-lg pl-9 pr-3 py-2 font-mono text-sm text-emerald-300 font-bold focus:outline-none focus:border-emerald-400"
+                    onBlur={handleUSDBlur}
+                    placeholder="0,00"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm font-mono text-emerald-400 font-bold focus:outline-none focus:border-amber-400"
                   />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Payer/Recipient, Payment Method & Status */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Payment Details */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 {type === 'ingreso' ? 'Aportante / Cliente' : 'Proveedor / Contratista'}
@@ -371,7 +566,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 type="text"
                 value={payerOrRecipient}
                 onChange={(e) => setPayerOrRecipient(e.target.value)}
-                placeholder={type === 'ingreso' ? 'Ej: Mily y Fer' : 'Ej: Walter Contratista'}
+                placeholder={type === 'ingreso' ? 'Ej: Mily y Fer' : 'Ej: Rogelio Fioce Techista'}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-400"
               />
             </div>
@@ -381,23 +576,22 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 Medio de Pago
               </label>
               <select
-                id="tx-method-select"
+                id="tx-payment-method"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-400"
               >
                 <option value="Transferencia">Transferencia Bancaria</option>
-                <option value="Tarjeta">Tarjeta de Crédito/Débito</option>
-                <option value="Efectivo">Efectivo ($ / u$s)</option>
+                <option value="Efectivo">Efectivo</option>
                 <option value="Cheque">Cheque</option>
-                <option value="Vep Bancario">VEP / Impuestos</option>
-                <option value="Otro">Otro</option>
+                <option value="Dólares Físicos">Dólares Físicos</option>
+                <option value="Venta de Divisas">Venta de Divisas (u$s)</option>
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Estado del Pago
+                Estado del Movimiento
               </label>
               <select
                 id="tx-status-select"
@@ -405,51 +599,47 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 onChange={(e) => setStatus(e.target.value as any)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-400"
               >
-                <option value="pagado">✅ Pagado / Cobrado</option>
-                <option value="pendiente">⏳ Pendiente</option>
-                <option value="previsto">📅 Previsto</option>
+                <option value="pagado">🟢 Pagado / Efectivizado</option>
+                <option value="pendiente">🟡 Pendiente de Pago</option>
+                <option value="previsto">🔵 Previsto / Presupuestado</option>
               </select>
             </div>
           </div>
 
-          {/* Notes */}
+          {/* Notes / Internal Observations */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Observaciones / Comprobante (Opcional)
+              Observaciones Internas / Comprobante
             </label>
             <textarea
               id="tx-notes-input"
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Número de factura, detalle de retenciones o notas sobre adicionales..."
+              placeholder="Número de factura, detalle de retenciones o notas sobre el contratista..."
               className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-400 resize-none"
             />
           </div>
-        </form>
 
-        {/* Footer Actions */}
-        <div className="px-6 py-4 bg-slate-800/80 border-t border-slate-800 flex items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-lg transition"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            className={`px-5 py-2 font-bold text-xs rounded-lg transition shadow-md flex items-center gap-2 ${
-              type === 'ingreso'
-                ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
-                : 'bg-rose-500 hover:bg-rose-400 text-white'
-            }`}
-          >
-            <Save className="h-4 w-4" />
-            {editingTransaction ? 'Guardar Cambios' : 'Registrar Movimiento'}
-          </button>
-        </div>
+          {/* Footer Buttons */}
+          <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-lg transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition shadow-md flex items-center gap-2"
+            >
+              <Save className="h-4 w-4" />
+              <span>{editingTransaction ? 'Actualizar Registro' : 'Guardar Movimiento'}</span>
+            </button>
+          </div>
+
+        </form>
       </div>
     </div>
   );

@@ -24,7 +24,9 @@ interface AuthContextType {
   canCreateTransactions: boolean;
   canEditDeleteTransactions: boolean;
   canEditTransactions: boolean;
+  canDeleteTransactions: boolean;
   canViewPlanDeCuentas: boolean;
+  canViewActivityLogs: boolean;
   canBackup: boolean;
   canRestore: boolean;
   login: (email: string, pass: string) => Promise<void>;
@@ -299,9 +301,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const canManageUsers = isSuperAdmin || isDirector;
   const canManageObras = isSuperAdmin || isDirector;
   const canCreateTransactions = isSuperAdmin || isDirector || isAdministrativo;
-  const canEditDeleteTransactions = isSuperAdmin || isDirector;
-  const canEditTransactions = canCreateTransactions;
+  const canEditTransactions = isSuperAdmin || isDirector || isAdministrativo;
+  const canDeleteTransactions = isSuperAdmin || isDirector;
+  const canEditDeleteTransactions = canDeleteTransactions;
   const canViewPlanDeCuentas = isSuperAdmin || isDirector || isAdministrativo;
+  const canViewActivityLogs = isSuperAdmin || isDirector;
   const canBackup = isSuperAdmin || isDirector;
   const canRestore = isSuperAdmin;
 
@@ -320,7 +324,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         canCreateTransactions,
         canEditDeleteTransactions,
         canEditTransactions,
+        canDeleteTransactions,
         canViewPlanDeCuentas,
+        canViewActivityLogs,
         canBackup,
         canRestore,
         login,

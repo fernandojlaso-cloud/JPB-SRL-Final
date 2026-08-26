@@ -30,5 +30,15 @@ service cloud.firestore {
     match /budgets/{budgetId} {
       allow read, write: if true;
     }
+
+    // Activity Logs collection
+    match /activity_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    // System Settings collection
+    match /system_settings/{settingId} {
+      allow read, write: if true;
+    }
   }
 }

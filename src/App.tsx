@@ -15,7 +15,8 @@ import {
   Users,
   ShieldCheck,
   Database,
-  Lock
+  Lock,
+  Activity
 } from 'lucide-react';
 import { 
   Project, 
@@ -23,7 +24,8 @@ import {
   BudgetEstimate, 
   Transaction, 
   Currency, 
-  TransactionType 
+  TransactionType,
+  ActivityLog
 } from './types';
 import { 
   INITIAL_PROJECTS, 
@@ -39,6 +41,7 @@ import { BudgetDeviationsTab } from './components/BudgetDeviationsTab';
 import { MacroOverview } from './components/MacroOverview';
 import { AccountsAdminTab } from './components/AccountsAdminTab';
 import { UsersAdminTab } from './components/UsersAdminTab';
+import { ActivityLogTab } from './components/ActivityLogTab';
 import { TransactionModal } from './components/TransactionModal';
 import { CurrencyConverterModal } from './components/CurrencyConverterModal';
 import { ExcelImportModal } from './components/ExcelImportModal';
@@ -54,6 +57,8 @@ import {
   subscribeToCategories,
   subscribeToTransactions,
   subscribeToBudgets,
+  subscribeToActivityLogs,
+  logActivityToFirestore,
   saveProjectToFirestore,
   saveBatchProjectsToFirestore,
   updateProjectInFirestore,
@@ -67,6 +72,7 @@ import {
   updateTransactionInFirestore,
   deleteTransactionFromFirestore,
   saveBudgetToFirestore,
+  saveBatchBudgetsToFirestore,
 } from './services/firestoreService';
 
 function MainDashboard() {
@@ -83,7 +89,9 @@ function MainDashboard() {
     canCreateTransactions,
     canEditDeleteTransactions,
     canEditTransactions,
+    canDeleteTransactions,
     canViewPlanDeCuentas,
+    canViewActivityLogs,
     canBackup 
   } = useAuth();
 
@@ -145,7 +153,8 @@ function MainDashboard() {
   }, [projects, isSuperAdmin, isDirector, isAdministrativo, isComitente, userProfile]);
 
   const [selectedProjectId, setSelectedProjectId] = useState<string>('proj-1');
-  const [activeTab, setActiveTab] = useState<'ingresos' | 'egresos' | 'desvios' | 'macro' | 'cuentas' | 'usuarios'>('egresos');
+  const [activeTab, setActiveTab] = useState<'ingresos' | 'egresos' | 'desvios' | 'macro' | 'cuentas' | 'usuarios' | 'actividad'>('egresos');
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
 
   // Modal States
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
@@ -165,6 +174,8 @@ function MainDashboard() {
       if (selectedProjectId !== 'macro' && !visibleProjects.some(p => p.id === selectedProjectId)) {
         setSelectedProjectId(visibleProjects[0].id);
       }
+    } else {
+      setSelectedProjectId('macro');
     }
   }, [visibleProjects, selectedProjectId]);
 
@@ -174,6 +185,7 @@ function MainDashboard() {
     let unsubCategories: (() => void) | undefined;
     let unsubTransactions: (() => void) | undefined;
     let unsubBudgets: (() => void) | undefined;
+    let unsubLogs: (() => void) | undefined;
 
     const setupFirestore = async () => {
       try {
@@ -181,27 +193,23 @@ function MainDashboard() {
         setIsCloudConnected(true);
 
         unsubProjects = subscribeToProjects((cloudProjects) => {
-          if (cloudProjects.length > 0) {
-            setProjects(cloudProjects);
-          }
+          setProjects(cloudProjects);
         });
 
         unsubCategories = subscribeToCategories((cloudCategories) => {
-          if (cloudCategories.length > 0) {
-            setCategories(cloudCategories);
-          }
+          setCategories(cloudCategories);
         });
 
         unsubTransactions = subscribeToTransactions((cloudTransactions) => {
-          if (cloudTransactions.length > 0) {
-            setTransactions(cloudTransactions);
-          }
+          setTransactions(cloudTransactions);
         });
 
         unsubBudgets = subscribeToBudgets((cloudBudgets) => {
-          if (cloudBudgets.length > 0) {
-            setBudgets(cloudBudgets);
-          }
+          setBudgets(cloudBudgets);
+        });
+
+        unsubLogs = subscribeToActivityLogs((cloudLogs) => {
+          setActivityLogs(cloudLogs);
         });
       } catch (err) {
         console.error('Error initializing Firestore realtime sync:', err);
@@ -215,6 +223,7 @@ function MainDashboard() {
       if (unsubCategories) unsubCategories();
       if (unsubTransactions) unsubTransactions();
       if (unsubBudgets) unsubBudgets();
+      if (unsubLogs) unsubLogs();
     };
   }, []);
 
@@ -285,7 +294,7 @@ function MainDashboard() {
     return <AuthScreen />;
   }
 
-  // Transaction Handlers with Firestore Persistence
+  // Transaction Handlers with Firestore Persistence & Activity Logging
   const handleOpenNewTransaction = (type: TransactionType) => {
     if (!canCreateTransactions) {
       alert('No tienes permisos para registrar nuevos movimientos.');
@@ -297,8 +306,8 @@ function MainDashboard() {
   };
 
   const handleEditTransaction = (tx: Transaction) => {
-    if (!canEditDeleteTransactions) {
-      alert('Acceso denegado: Únicamente el Director de Proyecto puede corregir o modificar asientos registrados.');
+    if (!canEditTransactions) {
+      alert('Acceso denegado: No cuentas con permisos para editar movimientos.');
       return;
     }
     setEditingTransaction(tx);
@@ -307,9 +316,12 @@ function MainDashboard() {
   };
 
   const handleSaveTransaction = async (txData: Omit<Transaction, 'id'>, editId?: string) => {
+    const proj = projects.find(p => p.id === txData.projectId);
+    const projName = proj?.name || 'Obra';
+
     if (editId) {
-      if (!canEditDeleteTransactions) {
-        alert('Acceso denegado: Únicamente el Director de Proyecto puede modificar un asiento.');
+      if (!canEditTransactions) {
+        alert('Acceso denegado: No cuentas con permisos para modificar este asiento.');
         return;
       }
       const updatedTx = { ...txData, id: editId };
@@ -318,6 +330,20 @@ function MainDashboard() {
       );
       try {
         await updateTransactionInFirestore(editId, txData);
+        await logActivityToFirestore({
+          action: 'update',
+          entity: txData.type === 'ingreso' ? 'ingreso' : 'egreso',
+          entityId: editId,
+          entityName: txData.concept,
+          projectName: projName,
+          projectId: txData.projectId,
+          userEmail: currentUser.email,
+          userName: currentUser.displayName || currentUser.email,
+          userRole: userProfile?.role || 'administrativo',
+          details: `Modificó ${txData.type === 'ingreso' ? 'ingreso' : 'egreso'}: "${txData.concept}"`,
+          amountARS: txData.amountARS,
+          amountUSD: txData.amountUSD,
+        });
       } catch (err) {
         console.error('Error updating transaction in Firestore:', err);
       }
@@ -333,6 +359,20 @@ function MainDashboard() {
       setTransactions((prev) => [newTx, ...prev]);
       try {
         await saveTransactionToFirestore(newTx);
+        await logActivityToFirestore({
+          action: 'create',
+          entity: txData.type === 'ingreso' ? 'ingreso' : 'egreso',
+          entityId: newTx.id,
+          entityName: txData.concept,
+          projectName: projName,
+          projectId: txData.projectId,
+          userEmail: currentUser.email,
+          userName: currentUser.displayName || currentUser.email,
+          userRole: userProfile?.role || 'administrativo',
+          details: `Registró nuevo ${txData.type === 'ingreso' ? 'ingreso' : 'egreso'}: "${txData.concept}"`,
+          amountARS: txData.amountARS,
+          amountUSD: txData.amountUSD,
+        });
       } catch (err) {
         console.error('Error saving new transaction to Firestore:', err);
       }
@@ -340,14 +380,33 @@ function MainDashboard() {
   };
 
   const handleDeleteTransaction = async (id: string) => {
-    if (!canEditDeleteTransactions) {
+    if (!canDeleteTransactions) {
       alert('Acceso denegado: Únicamente el Director de Proyecto puede borrar asientos contables.');
       return;
     }
+    const targetTx = transactions.find(t => t.id === id);
+    const proj = projects.find(p => p.id === targetTx?.projectId);
+
     if (confirm('¿Estás seguro de eliminar este registro? Esta acción sólo puede ser realizada por la Dirección de Obra.')) {
       setTransactions((prev) => prev.filter((t) => t.id !== id));
       try {
         await deleteTransactionFromFirestore(id);
+        if (targetTx) {
+          await logActivityToFirestore({
+            action: 'delete',
+            entity: targetTx.type === 'ingreso' ? 'ingreso' : 'egreso',
+            entityId: id,
+            entityName: targetTx.concept,
+            projectName: proj?.name || 'Obra',
+            projectId: targetTx.projectId,
+            userEmail: currentUser.email,
+            userName: currentUser.displayName || currentUser.email,
+            userRole: userProfile?.role || 'director',
+            details: `Eliminó asiento de ${targetTx.type === 'ingreso' ? 'ingreso' : 'egreso'}: "${targetTx.concept}"`,
+            amountARS: targetTx.amountARS,
+            amountUSD: targetTx.amountUSD,
+          });
+        }
       } catch (err) {
         console.error('Error deleting transaction from Firestore:', err);
       }
@@ -363,6 +422,16 @@ function MainDashboard() {
     setCategories((prev) => [...prev, newCat]);
     try {
       await saveCategoryToFirestore(newCat);
+      await logActivityToFirestore({
+        action: 'create',
+        entity: 'rubro',
+        entityId: newCat.id,
+        entityName: `${newCat.code} - ${newCat.name}`,
+        userEmail: currentUser.email,
+        userName: currentUser.displayName || currentUser.email,
+        userRole: userProfile?.role || 'administrativo',
+        details: `Creó el rubro "${newCat.code} - ${newCat.name}" (${newCat.type})`,
+      });
     } catch (err) {
       console.error('Error adding category to Firestore:', err);
     }
@@ -374,15 +443,38 @@ function MainDashboard() {
     );
     try {
       await updateCategoryInFirestore(id, updated);
+      await logActivityToFirestore({
+        action: 'update',
+        entity: 'rubro',
+        entityId: id,
+        entityName: updated.name || id,
+        userEmail: currentUser.email,
+        userName: currentUser.displayName || currentUser.email,
+        userRole: userProfile?.role || 'administrativo',
+        details: `Modificó el rubro "${updated.name || id}"`,
+      });
     } catch (err) {
       console.error('Error updating category in Firestore:', err);
     }
   };
 
   const handleDeleteCategory = async (id: string) => {
+    const targetCat = categories.find(c => c.id === id);
     setCategories((prev) => prev.filter((c) => c.id !== id));
     try {
       await deleteCategoryFromFirestore(id);
+      if (targetCat) {
+        await logActivityToFirestore({
+          action: 'delete',
+          entity: 'rubro',
+          entityId: id,
+          entityName: `${targetCat.code} - ${targetCat.name}`,
+          userEmail: currentUser.email,
+          userName: currentUser.displayName || currentUser.email,
+          userRole: userProfile?.role || 'director',
+          details: `Eliminó el rubro "${targetCat.code} - ${targetCat.name}"`,
+        });
+      }
     } catch (err) {
       console.error('Error deleting category from Firestore:', err);
     }
@@ -396,6 +488,14 @@ function MainDashboard() {
     setCategories((prev) => [...prev, ...formatted]);
     try {
       await saveBatchCategoriesToFirestore(formatted);
+      await logActivityToFirestore({
+        action: 'import',
+        entity: 'rubro',
+        userEmail: currentUser.email,
+        userName: currentUser.displayName || currentUser.email,
+        userRole: userProfile?.role || 'administrativo',
+        details: `Cargó en lote ${formatted.length} rubros al Plan de Cuentas`,
+      });
     } catch (err) {
       console.error('Error batch adding categories to Firestore:', err);
     }
@@ -416,6 +516,20 @@ function MainDashboard() {
     setSelectedProjectId(newProj.id);
     try {
       await saveProjectToFirestore(newProj);
+      await logActivityToFirestore({
+        action: 'create',
+        entity: 'obra',
+        entityId: newProj.id,
+        entityName: newProj.name,
+        projectName: newProj.name,
+        projectId: newProj.id,
+        userEmail: currentUser.email,
+        userName: currentUser.displayName || currentUser.email,
+        userRole: userProfile?.role || 'director',
+        details: `Creó la obra "${newProj.name}" ${newProj.address ? `(${newProj.address})` : ''}`,
+        amountARS: newProj.budgetARS,
+        amountUSD: newProj.budgetUSD,
+      });
     } catch (err) {
       console.error('Error saving project to Firestore:', err);
     }
@@ -427,6 +541,20 @@ function MainDashboard() {
     );
     try {
       await updateProjectInFirestore(id, updated);
+      await logActivityToFirestore({
+        action: 'update',
+        entity: 'obra',
+        entityId: id,
+        entityName: updated.name || id,
+        projectName: updated.name,
+        projectId: id,
+        userEmail: currentUser.email,
+        userName: currentUser.displayName || currentUser.email,
+        userRole: userProfile?.role || 'director',
+        details: `Actualizó datos y presupuestos de la obra "${updated.name || id}"`,
+        amountARS: updated.budgetARS,
+        amountUSD: updated.budgetUSD,
+      });
     } catch (err) {
       console.error('Error updating project in Firestore:', err);
     }
@@ -443,6 +571,8 @@ function MainDashboard() {
   };
 
   const handleDeleteProject = async (projectId: string) => {
+    const targetProj = projects.find(p => p.id === projectId);
+
     // 1. Remove project locally
     setProjects((prev) => {
       const filtered = prev.filter((p) => p.id !== projectId);
@@ -458,9 +588,23 @@ function MainDashboard() {
     // 3. Remove associated budgets locally
     setBudgets((prev) => prev.filter((b) => b.projectId !== projectId));
 
-    // 4. Delete in Firestore
+    // 4. Delete in Firestore & Log Activity
     try {
       await deleteProjectFromFirestore(projectId);
+      if (targetProj) {
+        await logActivityToFirestore({
+          action: 'delete',
+          entity: 'obra',
+          entityId: projectId,
+          entityName: targetProj.name,
+          projectName: targetProj.name,
+          projectId: projectId,
+          userEmail: currentUser.email,
+          userName: currentUser.displayName || currentUser.email,
+          userRole: userProfile?.role || 'director',
+          details: `Eliminó la obra "${targetProj.name}" y todos sus movimientos y presupuestos vinculados`,
+        });
+      }
     } catch (err) {
       console.error('Error deleting project in Firestore:', err);
     }
@@ -508,15 +652,71 @@ function MainDashboard() {
     }
   };
 
-  // Excel Import Handler with Firestore Batch Persistence
+  // Excel Import Handler for Transactions with Firestore Batch Persistence
   const handleImportSuccess = async (imported: Transaction[]) => {
     setTransactions((prev) => [...imported, ...prev]);
     try {
       await saveBatchTransactionsToFirestore(imported);
+      await logActivityToFirestore({
+        action: 'import',
+        entity: 'sistema',
+        userEmail: currentUser.email,
+        userName: currentUser.displayName || currentUser.email,
+        userRole: userProfile?.role || 'administrativo',
+        details: `Importó exitosamente desde Excel ${imported.length} asientos contables`,
+      });
       alert(`¡Se importaron y guardaron exitosamente en la nube ${imported.length} movimientos!`);
     } catch (err) {
       console.error('Error batch saving transactions to Firestore:', err);
       alert(`¡Se importaron ${imported.length} movimientos al sistema!`);
+    }
+  };
+
+  // Excel Import Handler for Budgets with Firestore Batch Persistence
+  const handleImportBudgets = async (importedBudgets: BudgetEstimate[], projectId: string) => {
+    const proj = projects.find(p => p.id === projectId);
+
+    // Merge new budgets with existing ones for other categories or other projects
+    setBudgets((prev) => {
+      const otherBudgets = prev.filter((b) => !(b.projectId === projectId && importedBudgets.some((ib) => ib.categoryId === b.categoryId)));
+      return [...otherBudgets, ...importedBudgets];
+    });
+
+    try {
+      await saveBatchBudgetsToFirestore(importedBudgets);
+
+      // Recalculate target project total budget
+      const allProjBudgets = [
+        ...budgets.filter((b) => b.projectId === projectId && !importedBudgets.some((ib) => ib.categoryId === b.categoryId)),
+        ...importedBudgets,
+      ];
+      const sumARS = allProjBudgets.reduce((acc, b) => acc + (b.budgetedARS || 0), 0);
+      const sumUSD = allProjBudgets.reduce((acc, b) => acc + (b.budgetedUSD || 0), 0);
+
+      if (sumARS > 0 || sumUSD > 0) {
+        setProjects((prev) =>
+          prev.map((p) => (p.id === projectId ? { ...p, budgetARS: sumARS, budgetUSD: sumUSD } : p))
+        );
+        await updateProjectInFirestore(projectId, { budgetARS: sumARS, budgetUSD: sumUSD });
+      }
+
+      await logActivityToFirestore({
+        action: 'import',
+        entity: 'presupuesto',
+        projectName: proj?.name || 'Obra',
+        projectId,
+        userEmail: currentUser.email,
+        userName: currentUser.displayName || currentUser.email,
+        userRole: userProfile?.role || 'administrativo',
+        details: `Cargó ${importedBudgets.length} rubros presupuestarios para la obra "${proj?.name || 'Obra'}"`,
+        amountARS: sumARS,
+        amountUSD: sumUSD,
+      });
+
+      alert(`¡Se importaron y guardaron exitosamente ${importedBudgets.length} rubros presupuestarios en la nube!`);
+    } catch (err) {
+      console.error('Error batch saving budgets to Firestore:', err);
+      alert(`¡Se importaron ${importedBudgets.length} rubros presupuestarios!`);
     }
   };
 
@@ -676,6 +876,27 @@ function MainDashboard() {
                   <span>Permisos & Usuarios</span>
                 </button>
               )}
+
+              {/* Solapa 7: Registro de Actividad & Auditoría (Solo Director y SuperAdmin) */}
+              {canViewActivityLogs && (
+                <button
+                  id="tab-actividad-btn"
+                  onClick={() => setActiveTab('actividad')}
+                  className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
+                    activeTab === 'actividad'
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Activity className="h-4 w-4 text-cyan-400" />
+                  <span>Actividad</span>
+                  {activityLogs.length > 0 && (
+                    <span className="text-[10px] bg-slate-800 text-cyan-300 px-1.5 py-0.5 rounded-full border border-cyan-500/30 font-mono">
+                      {activityLogs.length}
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Right Tools: Reset & Template */}
@@ -779,6 +1000,10 @@ function MainDashboard() {
         {activeTab === 'usuarios' && canManageUsers && (
           <UsersAdminTab projects={projects} />
         )}
+
+        {activeTab === 'actividad' && canViewActivityLogs && (
+          <ActivityLogTab logs={activityLogs} />
+        )}
       </main>
 
       {/* Footer */}
@@ -847,6 +1072,7 @@ function MainDashboard() {
         categories={categories}
         defaultProjectId={selectedProjectId}
         onImportSuccess={handleImportSuccess}
+        onImportBudgets={handleImportBudgets}
       />
 
       {/* Project Modal (New / Edit) */}

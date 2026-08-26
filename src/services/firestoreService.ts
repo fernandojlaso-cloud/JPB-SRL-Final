@@ -12,7 +12,7 @@ import {
   limit,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Project, AccountCategory, Transaction, BudgetEstimate } from '../types';
+import { Project, AccountCategory, Transaction, BudgetEstimate, ActivityLog } from '../types';
 import {
   INITIAL_PROJECTS,
   INITIAL_CATEGORIES,
@@ -26,111 +26,62 @@ const COLLECTIONS = {
   TRANSACTIONS: 'transactions',
   BUDGETS: 'budgets',
   USERS: 'users',
+  ACTIVITY_LOGS: 'activity_logs',
+  SYSTEM: 'system_settings',
 };
 
-// Seed initial data to Firestore if database is fresh/empty or missing contractor categories
+// Seed initial data to Firestore ONLY on the very first startup of a brand new instance
 export async function initializeFirestoreData(): Promise<void> {
   try {
-    const projectsSnap = await getDocs(query(collection(db, COLLECTIONS.PROJECTS), limit(1)));
-    if (projectsSnap.empty) {
-      console.log('Fresh Firestore detected. Seeding initial Grupo SimetriS data...');
+    const sysDocRef = doc(db, COLLECTIONS.SYSTEM, 'system_config');
+    const sysSnap = await getDoc(sysDocRef);
 
-      // Seed Projects
-      const projectBatch = writeBatch(db);
-      INITIAL_PROJECTS.forEach((p) => {
-        projectBatch.set(doc(db, COLLECTIONS.PROJECTS, p.id), p);
-      });
-      await projectBatch.commit();
+    // If already initialized, DO NOT restore or re-seed deleted projects/transactions
+    if (!sysSnap.exists() || !sysSnap.data()?.isInitialized) {
+      // Check if there are any existing projects in DB
+      const projectsSnap = await getDocs(query(collection(db, COLLECTIONS.PROJECTS), limit(1)));
+      if (projectsSnap.empty) {
+        console.log('Fresh Firestore detected. Seeding initial JPB SRL data once...');
 
-      // Seed Categories
-      const categoryBatch = writeBatch(db);
-      INITIAL_CATEGORIES.forEach((c) => {
-        categoryBatch.set(doc(db, COLLECTIONS.CATEGORIES, c.id), c);
-      });
-      await categoryBatch.commit();
-
-      // Seed Budgets
-      const budgetBatch = writeBatch(db);
-      INITIAL_BUDGETS.forEach((b) => {
-        budgetBatch.set(doc(db, COLLECTIONS.BUDGETS, b.id), b);
-      });
-      await budgetBatch.commit();
-
-      // Seed Transactions in chunks (due to Firestore 500 limit per batch)
-      const chunkSize = 250;
-      for (let i = 0; i < INITIAL_TRANSACTIONS.length; i += chunkSize) {
-        const chunk = INITIAL_TRANSACTIONS.slice(i, i + chunkSize);
-        const txBatch = writeBatch(db);
-        chunk.forEach((tx) => {
-          txBatch.set(doc(db, COLLECTIONS.TRANSACTIONS, tx.id), tx);
+        // Seed Projects
+        const projectBatch = writeBatch(db);
+        INITIAL_PROJECTS.forEach((p) => {
+          projectBatch.set(doc(db, COLLECTIONS.PROJECTS, p.id), p);
         });
-        await txBatch.commit();
+        await projectBatch.commit();
+
+        // Seed Categories
+        const categoryBatch = writeBatch(db);
+        INITIAL_CATEGORIES.forEach((c) => {
+          categoryBatch.set(doc(db, COLLECTIONS.CATEGORIES, c.id), c);
+        });
+        await categoryBatch.commit();
+
+        // Seed Budgets
+        const budgetBatch = writeBatch(db);
+        INITIAL_BUDGETS.forEach((b) => {
+          budgetBatch.set(doc(db, COLLECTIONS.BUDGETS, b.id), b);
+        });
+        await budgetBatch.commit();
+
+        // Seed Transactions in chunks (due to Firestore 500 limit per batch)
+        const chunkSize = 250;
+        for (let i = 0; i < INITIAL_TRANSACTIONS.length; i += chunkSize) {
+          const chunk = INITIAL_TRANSACTIONS.slice(i, i + chunkSize);
+          const txBatch = writeBatch(db);
+          chunk.forEach((tx) => {
+            txBatch.set(doc(db, COLLECTIONS.TRANSACTIONS, tx.id), tx);
+          });
+          await txBatch.commit();
+        }
       }
 
-      console.log('Initial Firestore seeding complete!');
-      return;
-    }
-
-    // Database already exists: verify if projects are missing (e.g. JPB SRL) or need initial budget update
-    const projectSnaps = await getDocs(collection(db, COLLECTIONS.PROJECTS));
-    const existingProjectIds = new Set<string>();
-    const projBatch = writeBatch(db);
-    let hasProjUpdates = false;
-
-    projectSnaps.forEach((d) => {
-      existingProjectIds.add(d.id);
-      const data = d.data() as Project;
-      // Ensure JPB SRL budget is 0 as requested
-      if (d.id === 'proj-jpb-srl' && (data.budgetARS > 0 || data.budgetUSD > 0)) {
-        projBatch.update(doc(db, COLLECTIONS.PROJECTS, d.id), {
-          budgetARS: 0,
-          budgetUSD: 0,
-        });
-        hasProjUpdates = true;
-      }
-    });
-
-    const missingProjects = INITIAL_PROJECTS.filter((p) => !existingProjectIds.has(p.id));
-    if (missingProjects.length > 0) {
-      console.log(`Syncing ${missingProjects.length} new projects to Firestore...`);
-      missingProjects.forEach((p) => {
-        projBatch.set(doc(db, COLLECTIONS.PROJECTS, p.id), p);
-      });
-      hasProjUpdates = true;
-    }
-
-    if (hasProjUpdates) {
-      await projBatch.commit();
-    }
-
-    // verify if contractor cost centers are present, if not, add them seamlessly
-    const catSnaps = await getDocs(collection(db, COLLECTIONS.CATEGORIES));
-    const existingCatIds = new Set<string>();
-    catSnaps.forEach((d) => existingCatIds.add(d.id));
-
-    const missingCategories = INITIAL_CATEGORIES.filter((c) => !existingCatIds.has(c.id));
-    if (missingCategories.length > 0) {
-      console.log(`Syncing ${missingCategories.length} new contractor cost centers to Firestore...`);
-      const syncBatch = writeBatch(db);
-      missingCategories.forEach((c) => {
-        syncBatch.set(doc(db, COLLECTIONS.CATEGORIES, c.id), c);
-      });
-      await syncBatch.commit();
-    }
-
-    // Check missing contractor budgets
-    const budgetSnaps = await getDocs(collection(db, COLLECTIONS.BUDGETS));
-    const existingBudgetIds = new Set<string>();
-    budgetSnaps.forEach((d) => existingBudgetIds.add(d.id));
-
-    const missingBudgets = INITIAL_BUDGETS.filter((b) => !existingBudgetIds.has(b.id));
-    if (missingBudgets.length > 0) {
-      console.log(`Syncing ${missingBudgets.length} contractor budget items to Firestore...`);
-      const budgetSyncBatch = writeBatch(db);
-      missingBudgets.forEach((b) => {
-        budgetSyncBatch.set(doc(db, COLLECTIONS.BUDGETS, b.id), b);
-      });
-      await budgetSyncBatch.commit();
+      // Mark system as initialized so deleted records are never re-seeded
+      await setDoc(sysDocRef, {
+        isInitialized: true,
+        initializedAt: new Date().toISOString(),
+        version: '2.5-jpbsrl',
+      }, { merge: true });
     }
 
     // Ensure Master Superadmin profile and auth account exists for fernandoj.laso@gmail.com
@@ -185,8 +136,56 @@ export async function initializeFirestoreData(): Promise<void> {
         uid: superUid,
       });
     }
+    // Check and backfill initial activity logs if none exist yet
+    try {
+      const logsSnap = await getDocs(query(collection(db, COLLECTIONS.ACTIVITY_LOGS), limit(1)));
+      if (logsSnap.empty) {
+        const [txsSnap, projsSnap] = await Promise.all([
+          getDocs(collection(db, COLLECTIONS.TRANSACTIONS)),
+          getDocs(collection(db, COLLECTIONS.PROJECTS)),
+        ]);
+
+        const projMap = new Map<string, string>();
+        projsSnap.forEach((p) => projMap.set(p.id, p.data().name || 'Obra'));
+
+        const logBatch = writeBatch(db);
+        let batchCount = 0;
+
+        txsSnap.forEach((docSnap) => {
+          if (batchCount < 450) {
+            const tx = docSnap.data() as Transaction;
+            const logId = `act-${docSnap.id}`;
+            const logItem: ActivityLog = {
+              id: logId,
+              timestamp: tx.date ? new Date(`${tx.date}T12:00:00Z`).toISOString() : new Date().toISOString(),
+              action: 'create',
+              entity: tx.type === 'ingreso' ? 'ingreso' : 'egreso',
+              entityId: docSnap.id,
+              entityName: tx.concept || 'Movimiento contable',
+              projectName: projMap.get(tx.projectId) || 'Obra',
+              projectId: tx.projectId,
+              userEmail: superEmail,
+              userName: 'Fernando Laso',
+              userRole: 'superadmin',
+              details: `Registró ${tx.type === 'ingreso' ? 'ingreso' : 'egreso'}: "${tx.concept || 'Movimiento'}"`,
+              amountARS: tx.amountARS,
+              amountUSD: tx.amountUSD,
+            };
+            logBatch.set(doc(db, COLLECTIONS.ACTIVITY_LOGS, logId), logItem);
+            batchCount++;
+          }
+        });
+
+        if (batchCount > 0) {
+          await logBatch.commit();
+          console.log(`Synchronized ${batchCount} historical activity logs.`);
+        }
+      }
+    } catch (logErr) {
+      console.warn('Error synchronizing historical activity logs:', logErr);
+    }
   } catch (error) {
-    console.error('Error during Firestore data seeding/syncing:', error);
+    console.error('Error during Firestore data initialization:', error);
   }
 }
 
@@ -365,6 +364,18 @@ export async function saveBudgetToFirestore(budget: BudgetEstimate): Promise<voi
   await setDoc(doc(db, COLLECTIONS.BUDGETS, budget.id), budget, { merge: true });
 }
 
+export async function saveBatchBudgetsToFirestore(budgets: BudgetEstimate[]): Promise<void> {
+  const chunkSize = 250;
+  for (let i = 0; i < budgets.length; i += chunkSize) {
+    const chunk = budgets.slice(i, i + chunkSize);
+    const batch = writeBatch(db);
+    chunk.forEach((b) => {
+      batch.set(doc(db, COLLECTIONS.BUDGETS, b.id), b, { merge: true });
+    });
+    await batch.commit();
+  }
+}
+
 // --------------------------------------------------------------------------
 // User Management Subscriptions & Actions
 // --------------------------------------------------------------------------
@@ -388,6 +399,50 @@ export async function updateUserProfileInFirestore(uid: string, updates: Record<
 
 export async function deleteUserFromFirestore(uid: string): Promise<void> {
   await deleteDoc(doc(db, COLLECTIONS.USERS, uid));
+}
+
+// --------------------------------------------------------------------------
+// Activity Audit Logs
+// --------------------------------------------------------------------------
+
+export async function logActivityToFirestore(logData: Omit<ActivityLog, 'id' | 'timestamp'>): Promise<void> {
+  try {
+    const id = `act-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const fullLog: ActivityLog = {
+      ...logData,
+      id,
+      timestamp: new Date().toISOString(),
+    };
+    await setDoc(doc(db, COLLECTIONS.ACTIVITY_LOGS, id), fullLog);
+  } catch (err) {
+    console.warn('Failed to write activity log to Firestore:', err);
+  }
+}
+
+export function subscribeToActivityLogs(callback: (logs: ActivityLog[]) => void): () => void {
+  const colRef = collection(db, COLLECTIONS.ACTIVITY_LOGS);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const logs: ActivityLog[] = [];
+      snapshot.forEach((docSnap) => {
+        logs.push(docSnap.data() as ActivityLog);
+      });
+      // Sort newest first
+      logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      callback(logs);
+    },
+    (error) => {
+      console.warn('Error subscribing to activity logs:', error);
+    }
+  );
+}
+
+export async function clearAllActivityLogs(): Promise<void> {
+  const snap = await getDocs(collection(db, COLLECTIONS.ACTIVITY_LOGS));
+  const batch = writeBatch(db);
+  snap.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
 }
 
 // --------------------------------------------------------------------------
