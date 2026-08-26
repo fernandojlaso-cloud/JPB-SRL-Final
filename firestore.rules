@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Auth accounts (hashed passwords for custom login)
+    match /auth_accounts/{accountId} {
+      allow read, write: if true;
+    }
+
+    // Users & Permissions collection
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Projects collection
+    match /projects/{projectId} {
+      allow read, write: if true;
+    }
+
+    // Categories collection
+    match /categories/{categoryId} {
+      allow read, write: if true;
+    }
+
+    // Transactions collection
+    match /transactions/{transactionId} {
+      allow read, write: if true;
+    }
+
+    // Budgets collection
+    match /budgets/{budgetId} {
+      allow read, write: if true;
+    }
+  }
+}

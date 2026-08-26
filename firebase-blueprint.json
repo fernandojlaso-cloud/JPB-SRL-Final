@@ -1,0 +1,131 @@
+{
+  "entities": {
+    "Project": {
+      "title": "Project",
+      "description": "Obras y proyectos de construcción de JPB SRL",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "address": { "type": "string" },
+        "client": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "completed", "on-hold"] },
+        "startDate": { "type": "string" },
+        "budgetARS": { "type": "number" },
+        "budgetUSD": { "type": "number" },
+        "defaultExchangeRate": { "type": "number" },
+        "notes": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "budgetARS", "budgetUSD", "defaultExchangeRate", "status"]
+    },
+    "AccountCategory": {
+      "title": "AccountCategory",
+      "description": "Rubros y cuentas contables",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["ingreso", "egreso"] },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "description": { "type": "string" },
+        "color": { "type": "string" },
+        "isDefault": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["type", "name", "code", "color"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Comprobantes y movimientos de fondos",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["ingreso", "egreso"] },
+        "projectId": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "date": { "type": "string" },
+        "description": { "type": "string" },
+        "voucherNumber": { "type": "string" },
+        "supplierOrOrigin": { "type": "string" },
+        "amountARS": { "type": "number" },
+        "exchangeRate": { "type": "number" },
+        "amountUSD": { "type": "number" },
+        "notes": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["type", "projectId", "categoryId", "date", "description", "amountARS", "exchangeRate", "amountUSD"]
+    },
+    "BudgetEstimate": {
+      "title": "BudgetEstimate",
+      "description": "Presupuestos meta por rubro y obra",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "budgetARS": { "type": "number" },
+        "budgetUSD": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["projectId", "categoryId", "budgetARS", "budgetUSD"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Perfiles de usuario y permisos de acceso RBAC",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["superadmin", "director", "administrativo", "comitente"] },
+        "status": { "type": "string", "enum": ["pending", "active", "rejected", "revoked"] },
+        "assignedProjectIds": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string" },
+        "approvedAt": { "type": "string" },
+        "approvedBy": { "type": "string" }
+      },
+      "required": ["uid", "email", "role", "status"]
+    },
+    "AuthAccount": {
+      "title": "AuthAccount",
+      "description": "Credenciales y hashes criptográficos de cuentas del sistema propio",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "passwordHash"]
+    }
+  },
+  "firestore": {
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Colección de obras de JPB SRL"
+    },
+    "/categories/{categoryId}": {
+      "schema": "AccountCategory",
+      "description": "Colección de rubros y cuentas contables"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Colección de movimientos financieros"
+    },
+    "/budgets/{budgetId}": {
+      "schema": "BudgetEstimate",
+      "description": "Presupuestos por rubro y obra"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Colección de usuarios, roles y autorizaciones"
+    },
+    "/auth_accounts/{accountId}": {
+      "schema": "AuthAccount",
+      "description": "Colección de credenciales y hashes de cuentas registradas"
+    }
+  }
+}

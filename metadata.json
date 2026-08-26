@@ -1,0 +1,6 @@
+{
+  "name": "JPB SRL - Control Financiero de Obras",
+  "description": "Sistema integral de control financiero de obras, liquidaciones bimonetarias (ARS/USD) y seguimiento presupuestario de JPB SRL.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
