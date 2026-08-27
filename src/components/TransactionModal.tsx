@@ -567,18 +567,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                         Moneda oficial del presupuesto
                       </span>
                     </div>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-emerald-400">
+                    <div className="flex items-center bg-slate-900 border-2 border-emerald-500/50 rounded-xl px-3 py-1.5 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-400/20 transition shadow-inner">
+                      <span className="text-sm font-black text-emerald-400 select-none mr-2">
                         u$s
                       </span>
                       <input
                         id="tx-amount-usd-direct"
+                        name="tx_amount_usd_direct"
                         type="text"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                         value={amountUSD}
                         onChange={(e) => handleUSDChange(e.target.value)}
                         onBlur={handleUSDBlur}
                         placeholder="0,00"
-                        className="w-full bg-slate-900 border-2 border-emerald-500/50 rounded-xl pl-12 pr-4 py-2.5 text-lg font-mono text-emerald-300 font-bold focus:outline-none focus:border-emerald-400 shadow-inner"
+                        className="w-full bg-transparent text-lg font-mono text-emerald-300 font-bold focus:outline-none placeholder-slate-600"
                         autoFocus
                       />
                     </div>
@@ -595,18 +601,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                         </span>
                       )}
                     </div>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">
+                    <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-400/30 transition">
+                      <span className="text-xs text-slate-400 font-bold select-none mr-2">
                         t.c.
                       </span>
                       <input
                         id="tx-exchange-rate-usd-mode"
+                        name="tx_tc_usd_mode"
                         type="text"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                         value={exchangeRate}
                         onChange={(e) => handleTCChange(e.target.value)}
                         onBlur={handleTCBlur}
                         placeholder="1.500,00"
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-sm font-mono text-slate-200 font-bold focus:outline-none focus:border-amber-400"
+                        className="w-full bg-transparent text-sm font-mono text-slate-200 font-bold focus:outline-none placeholder-slate-600"
                       />
                     </div>
                   </div>
@@ -639,18 +651,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                         Según factura o ticket
                       </span>
                     </div>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-amber-400">
+                    <div className="flex items-center bg-slate-900 border-2 border-amber-500/50 rounded-xl px-3 py-1.5 focus-within:border-amber-400 focus-within:ring-2 focus-within:ring-amber-400/20 transition shadow-inner">
+                      <span className="text-sm font-black text-amber-400 select-none mr-2">
                         $
                       </span>
                       <input
                         id="tx-amount-ars-mode"
+                        name="tx_amount_ars_mode"
                         type="text"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                         value={amountARS}
                         onChange={(e) => handleARSChange(e.target.value)}
                         onBlur={handleARSBlur}
                         placeholder="0,00"
-                        className="w-full bg-slate-900 border-2 border-amber-500/50 rounded-xl pl-8 pr-4 py-2.5 text-lg font-mono text-amber-300 font-bold focus:outline-none focus:border-amber-400 shadow-inner"
+                        className="w-full bg-transparent text-lg font-mono text-amber-300 font-bold focus:outline-none placeholder-slate-600"
                         autoFocus
                       />
                     </div>
@@ -667,18 +685,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                         </span>
                       )}
                     </div>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">
+                    <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-400/30 transition">
+                      <span className="text-xs text-slate-400 font-bold select-none mr-2">
                         t.c.
                       </span>
                       <input
                         id="tx-exchange-rate-ars-mode"
+                        name="tx_tc_ars_mode"
                         type="text"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                         value={exchangeRate}
                         onChange={(e) => handleTCChange(e.target.value)}
                         onBlur={handleTCBlur}
                         placeholder="1.500,00"
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-sm font-mono text-slate-200 font-bold focus:outline-none focus:border-amber-400"
+                        className="w-full bg-transparent text-sm font-mono text-slate-200 font-bold focus:outline-none placeholder-slate-600"
                       />
                     </div>
                   </div>
@@ -723,16 +747,22 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                         </span>
                       )}
                     </div>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">$</span>
+                    <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 focus-within:border-amber-400 transition">
+                      <span className="text-xs text-slate-400 font-bold select-none mr-1.5">$</span>
                       <input
                         id="tx-amount-ars-bimonetary"
+                        name="tx_ars_bimonetary"
                         type="text"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                         value={amountARS}
                         onChange={(e) => handleARSChange(e.target.value)}
                         onBlur={handleARSBlur}
                         placeholder="0,00"
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-sm font-mono text-slate-100 font-bold focus:outline-none focus:border-amber-400"
+                        className="w-full bg-transparent text-sm font-mono text-slate-100 font-bold focus:outline-none placeholder-slate-600"
                       />
                     </div>
                   </div>
@@ -748,16 +778,22 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                         </span>
                       )}
                     </div>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">t.c.</span>
+                    <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 focus-within:border-amber-400 transition">
+                      <span className="text-xs text-slate-400 font-bold select-none mr-1.5">t.c.</span>
                       <input
                         id="tx-exchange-rate-bimonetary"
+                        name="tx_tc_bimonetary"
                         type="text"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                         value={exchangeRate}
                         onChange={(e) => handleTCChange(e.target.value)}
                         onBlur={handleTCBlur}
                         placeholder="1.500,00"
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm font-mono text-amber-300 font-bold focus:outline-none focus:border-amber-400"
+                        className="w-full bg-transparent text-sm font-mono text-amber-300 font-bold focus:outline-none placeholder-slate-600"
                       />
                     </div>
                   </div>
@@ -773,16 +809,22 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                         </span>
                       )}
                     </div>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-xs text-emerald-400 font-bold">u$s</span>
+                    <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-400 transition">
+                      <span className="text-xs text-emerald-400 font-bold select-none mr-1.5">u$s</span>
                       <input
                         id="tx-amount-usd-bimonetary"
+                        name="tx_usd_bimonetary"
                         type="text"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                         value={amountUSD}
                         onChange={(e) => handleUSDChange(e.target.value)}
                         onBlur={handleUSDBlur}
                         placeholder="0,00"
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm font-mono text-emerald-400 font-bold focus:outline-none focus:border-amber-400"
+                        className="w-full bg-transparent text-sm font-mono text-emerald-400 font-bold focus:outline-none placeholder-slate-600"
                       />
                     </div>
                   </div>

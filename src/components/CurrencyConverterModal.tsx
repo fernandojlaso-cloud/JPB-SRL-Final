@@ -132,16 +132,21 @@ export const CurrencyConverterModal: React.FC<CurrencyConverterModalProps> = ({
                   {formatCurrency(parseArgentineNumber(arsAmount), 'ARS')}
                 </span>
               </div>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg">$</span>
+              <div className="flex items-center bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-1.5 focus-within:border-amber-400 transition">
+                <span className="text-slate-400 font-bold text-lg mr-2 select-none">$</span>
                 <input
                   id="modal-ars-input"
-                  type="number"
-                  step="any"
+                  name="modal_ars_input"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   value={arsAmount}
                   onChange={(e) => handleArsChange(e.target.value)}
-                  className="w-full bg-slate-900/90 border border-slate-700 rounded-lg pl-9 pr-4 py-2.5 text-white font-mono text-lg font-bold focus:border-amber-400 focus:outline-none"
-                  placeholder="0.00"
+                  className="w-full bg-transparent text-white font-mono text-lg font-bold focus:outline-none placeholder-slate-600"
+                  placeholder="0,00"
                 />
               </div>
             </div>
@@ -161,16 +166,21 @@ export const CurrencyConverterModal: React.FC<CurrencyConverterModalProps> = ({
                   {formatCurrency(parseArgentineNumber(usdAmount), 'USD')}
                 </span>
               </div>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-400 font-bold text-sm">u$s</span>
+              <div className="flex items-center bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-1.5 focus-within:border-emerald-400 transition">
+                <span className="text-emerald-400 font-bold text-sm mr-2 select-none">u$s</span>
                 <input
                   id="modal-usd-input"
-                  type="number"
-                  step="any"
+                  name="modal_usd_input"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   value={usdAmount}
                   onChange={(e) => handleUsdChange(e.target.value)}
-                  className="w-full bg-slate-900/90 border border-slate-700 rounded-lg pl-12 pr-4 py-2.5 text-white font-mono text-lg font-bold focus:border-emerald-400 focus:outline-none"
-                  placeholder="0.00"
+                  className="w-full bg-transparent text-white font-mono text-lg font-bold focus:outline-none placeholder-slate-600"
+                  placeholder="0,00"
                 />
               </div>
             </div>
