@@ -27,6 +27,7 @@ export interface Project {
   client?: string;
   status: ProjectStatus;
   startDate: string;
+  totalM2?: number; // Metros totales de construcción en m²
   budgetARS: number;
   budgetUSD: number;
   defaultExchangeRate: number;

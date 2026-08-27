@@ -9,7 +9,6 @@ import {
   Plus, 
   UploadCloud, 
   Download, 
-  ArrowRightLeft, 
   RefreshCw,
   FileSpreadsheet,
   Users,
@@ -43,7 +42,6 @@ import { AccountsAdminTab } from './components/AccountsAdminTab';
 import { UsersAdminTab } from './components/UsersAdminTab';
 import { ActivityLogTab } from './components/ActivityLogTab';
 import { TransactionModal } from './components/TransactionModal';
-import { CurrencyConverterModal } from './components/CurrencyConverterModal';
 import { ExcelImportModal } from './components/ExcelImportModal';
 import { ProjectModal } from './components/ProjectModal';
 import { UserManualModal } from './components/UserManualModal';
@@ -74,6 +72,25 @@ import {
   saveBudgetToFirestore,
   saveBatchBudgetsToFirestore,
 } from './services/firestoreService';
+
+// Helper to assign standard category budget distribution weights
+const getCategoryWeight = (cat: AccountCategory): number => {
+  const code = (cat.code || '').toUpperCase();
+  const name = (cat.name || '').toLowerCase();
+  if (code.includes('MAT') || name.includes('material') || name.includes('árido')) return 0.35;
+  if (code.includes('MO') || name.includes('mano de obra') || name.includes('albañil') || name.includes('demolic')) return 0.35;
+  if (code.includes('HON') || name.includes('honorario') || name.includes('direcci') || name.includes('técnic')) return 0.10;
+  if (code.includes('ESTR') || name.includes('hormigón') || name.includes('estructura')) return 0.15;
+  if (code.includes('ABER') || name.includes('abertura') || name.includes('carpinter')) return 0.08;
+  if (code.includes('SAN') || code.includes('PLO') || name.includes('sanitar') || name.includes('plomer')) return 0.08;
+  if (code.includes('ELEC') || name.includes('electric')) return 0.07;
+  if (code.includes('PERM') || name.includes('derecho') || name.includes('tasa') || name.includes('muni')) return 0.05;
+  if (code.includes('FLET') || code.includes('LOG') || name.includes('flete') || name.includes('volquete')) return 0.05;
+  if (code.includes('PIS') || name.includes('piso') || name.includes('revestimiento')) return 0.08;
+  if (code.includes('PINT') || name.includes('pintur')) return 0.06;
+  if (code.includes('GEN') || name.includes('general')) return 0.05;
+  return 0.05;
+};
 
 function MainDashboard() {
   const { 
@@ -134,7 +151,7 @@ function MainDashboard() {
 
   const [currency, setCurrency] = useState<Currency>(() => {
     const saved = localStorage.getItem('obrafin_currency');
-    return (saved as Currency) || 'ARS';
+    return (saved as Currency) || 'USD';
   });
 
   const [isCloudConnected, setIsCloudConnected] = useState(false);
@@ -161,7 +178,6 @@ function MainDashboard() {
   const [modalTransactionType, setModalTransactionType] = useState<TransactionType>('egreso');
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
-  const [isConverterOpen, setIsConverterOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
@@ -514,8 +530,33 @@ function MainDashboard() {
     };
     setProjects((prev) => [...prev, newProj]);
     setSelectedProjectId(newProj.id);
+
+    // Automatically create initial category budgets if a total budget was entered
+    const expenseCategories = categories.filter((c) => c.type === 'egreso');
+    const newBudgets: BudgetEstimate[] = [];
+    if (newProj.budgetUSD > 0 && expenseCategories.length > 0) {
+      const totalWeight = expenseCategories.reduce((acc, cat) => acc + getCategoryWeight(cat), 0);
+      expenseCategories.forEach((cat, idx) => {
+        const weight = getCategoryWeight(cat) / (totalWeight || 1);
+        const usd = Number((newProj.budgetUSD * weight).toFixed(2));
+        const ars = Number((usd * (newProj.defaultExchangeRate || 180)).toFixed(2));
+        newBudgets.push({
+          id: `bud-${Date.now()}-${idx}`,
+          projectId: newProj.id,
+          categoryId: cat.id,
+          budgetedARS: ars,
+          budgetedUSD: usd,
+          notes: `Presupuesto inicial estimado (${(weight * 100).toFixed(1)}%)`,
+        });
+      });
+      setBudgets((prev) => [...prev, ...newBudgets]);
+    }
+
     try {
       await saveProjectToFirestore(newProj);
+      if (newBudgets.length > 0) {
+        await saveBatchBudgetsToFirestore(newBudgets);
+      }
       await logActivityToFirestore({
         action: 'create',
         entity: 'obra',
@@ -532,6 +573,59 @@ function MainDashboard() {
       });
     } catch (err) {
       console.error('Error saving project to Firestore:', err);
+    }
+  };
+
+  const handleAutoDistributeBudgets = async (projectId: string) => {
+    const proj = projects.find((p) => p.id === projectId);
+    if (!proj || !proj.budgetUSD || proj.budgetUSD <= 0) return;
+
+    const expenseCategories = categories.filter((c) => c.type === 'egreso');
+    if (expenseCategories.length === 0) return;
+
+    const totalWeight = expenseCategories.reduce((acc, cat) => acc + getCategoryWeight(cat), 0);
+    const newBudgets: BudgetEstimate[] = [];
+
+    for (let i = 0; i < expenseCategories.length; i++) {
+      const cat = expenseCategories[i];
+      const weight = getCategoryWeight(cat) / (totalWeight || 1);
+      const usd = Number((proj.budgetUSD * weight).toFixed(2));
+      const ars = Number((usd * (proj.defaultExchangeRate || 180)).toFixed(2));
+
+      const existing = budgets.find(b => b.projectId === projectId && b.categoryId === cat.id);
+      const bItem: BudgetEstimate = {
+        id: existing?.id || `bud-${Date.now()}-${i}`,
+        projectId,
+        categoryId: cat.id,
+        budgetedARS: ars,
+        budgetedUSD: usd,
+        notes: `Presupuesto asignado por calibración automática (${(weight * 100).toFixed(1)}%)`,
+      };
+      newBudgets.push(bItem);
+    }
+
+    setBudgets((prev) => {
+      const filtered = prev.filter(b => b.projectId !== projectId);
+      return [...filtered, ...newBudgets];
+    });
+
+    try {
+      await saveBatchBudgetsToFirestore(newBudgets);
+      await logActivityToFirestore({
+        action: 'update',
+        entity: 'obra',
+        entityId: projectId,
+        entityName: proj.name,
+        projectName: proj.name,
+        projectId,
+        userEmail: currentUser.email,
+        userName: currentUser.displayName || currentUser.email,
+        userRole: userProfile?.role || 'director',
+        details: `Calibró automáticamente los presupuestos de ${newBudgets.length} rubros s/presupuesto meta (${proj.budgetUSD} u$s)`,
+        amountUSD: proj.budgetUSD,
+      });
+    } catch (err) {
+      console.error('Error saving distributed budgets to Firestore:', err);
     }
   };
 
@@ -765,8 +859,6 @@ function MainDashboard() {
           }
         }}
         currency={currency}
-        onToggleCurrency={setCurrency}
-        onOpenConverter={() => setIsConverterOpen(true)}
         onOpenImport={() => setIsImportModalOpen(true)}
         onExportExcel={handleExportExcel}
         onNewProject={() => handleOpenProjectModal()}
@@ -899,7 +991,7 @@ function MainDashboard() {
               )}
             </div>
 
-            {/* Right Tools: Reset & Template */}
+            {/* Right Tools: Template */}
             <div className="flex items-center gap-1.5 min-w-max">
               <button
                 onClick={downloadExcelTemplate}
@@ -909,17 +1001,6 @@ function MainDashboard() {
                 <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
                 <span className="hidden lg:inline">Plantilla</span>
               </button>
-
-              {isSuperAdmin && (
-                <button
-                  onClick={handleResetData}
-                  className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition text-xs flex items-center gap-1"
-                  title="Restaurar datos de ejemplo"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  <span className="hidden lg:inline">Restaurar Ejemplo</span>
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -962,6 +1043,7 @@ function MainDashboard() {
             transactions={transactions}
             currency={currency}
             onUpdateBudget={handleUpdateBudget}
+            onAutoDistributeBudgets={handleAutoDistributeBudgets}
           />
         )}
 
@@ -1055,13 +1137,6 @@ function MainDashboard() {
         projects={visibleProjects}
         categories={categories}
         defaultProjectId={selectedProjectId}
-      />
-
-      {/* Currency Converter Modal */}
-      <CurrencyConverterModal
-        isOpen={isConverterOpen}
-        onClose={() => setIsConverterOpen(false)}
-        initialRate={visibleProjects.find(p => p.id === selectedProjectId)?.defaultExchangeRate || 180.0}
       />
 
       {/* Excel Import Modal */}

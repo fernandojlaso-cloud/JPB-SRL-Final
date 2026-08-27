@@ -143,10 +143,10 @@ export const MacroOverview: React.FC<MacroOverviewProps> = ({
             </div>
           </div>
           <div className="text-2xl font-black text-emerald-400 font-mono tracking-tight">
-            {formatCurrency(currency === 'ARS' ? macroIncomeARS : macroIncomeUSD, currency)}
+            {formatCurrency(macroIncomeUSD, 'USD')}
           </div>
           <div className="text-xs text-slate-400 font-mono mt-1">
-            {currency === 'ARS' ? formatCurrency(macroIncomeUSD, 'USD') : formatCurrency(macroIncomeARS, 'ARS')}
+            Equiv. $ {macroIncomeARS > 0 ? (macroIncomeARS / 1000000).toFixed(1) + 'M ARS' : '0 ARS'}
           </div>
         </div>
 
@@ -159,10 +159,10 @@ export const MacroOverview: React.FC<MacroOverviewProps> = ({
             </div>
           </div>
           <div className="text-2xl font-black text-rose-400 font-mono tracking-tight">
-            {formatCurrency(currency === 'ARS' ? macroExpenseARS : macroExpenseUSD, currency)}
+            {formatCurrency(macroExpenseUSD, 'USD')}
           </div>
           <div className="text-xs text-slate-400 font-mono mt-1">
-            {currency === 'ARS' ? formatCurrency(macroExpenseUSD, 'USD') : formatCurrency(macroExpenseARS, 'ARS')}
+            Equiv. $ {macroExpenseARS > 0 ? (macroExpenseARS / 1000000).toFixed(1) + 'M ARS' : '0 ARS'}
           </div>
         </div>
 
@@ -174,11 +174,11 @@ export const MacroOverview: React.FC<MacroOverviewProps> = ({
               <Scale className="h-4 w-4" />
             </div>
           </div>
-          <div className={`text-2xl font-black font-mono tracking-tight ${macroBalanceARS >= 0 ? 'text-amber-400' : 'text-rose-400'}`}>
-            {formatCurrency(currency === 'ARS' ? macroBalanceARS : macroBalanceUSD, currency)}
+          <div className={`text-2xl font-black font-mono tracking-tight ${macroBalanceUSD >= 0 ? 'text-amber-400' : 'text-rose-400'}`}>
+            {formatCurrency(macroBalanceUSD, 'USD')}
           </div>
           <div className="text-xs text-slate-400 font-mono mt-1">
-            {macroIncomeARS > 0 ? `${((macroBalanceARS / macroIncomeARS) * 100).toFixed(1)}% margen operativo` : '0%'}
+            {macroIncomeUSD > 0 ? `${((macroBalanceUSD / macroIncomeUSD) * 100).toFixed(1)}% margen operativo` : '0%'}
           </div>
         </div>
 
@@ -191,10 +191,10 @@ export const MacroOverview: React.FC<MacroOverviewProps> = ({
             </div>
           </div>
           <div className="text-2xl font-black text-slate-100 font-mono tracking-tight">
-            {formatCurrency(currency === 'ARS' ? macroBudgetARS : macroBudgetUSD, currency)}
+            {formatCurrency(macroBudgetUSD, 'USD')}
           </div>
           <div className="text-xs text-slate-400 font-mono mt-1">
-            {macroBudgetARS > 0 ? `${((macroExpenseARS / macroBudgetARS) * 100).toFixed(1)}% ejecutado global` : '0%'}
+            {macroBudgetUSD > 0 ? `${((macroExpenseUSD / macroBudgetUSD) * 100).toFixed(1)}% ejecutado global` : '0%'}
           </div>
         </div>
       </div>
@@ -209,7 +209,7 @@ export const MacroOverview: React.FC<MacroOverviewProps> = ({
             </h3>
           </div>
           <span className="text-xs text-slate-400">
-            Valores en {currency === 'ARS' ? 'Pesos ($)' : 'Dólares (u$s)'}
+            Valores en Dólares Americanos (u$s USD)
           </span>
         </div>
 
@@ -225,7 +225,7 @@ export const MacroOverview: React.FC<MacroOverviewProps> = ({
               />
               <Tooltip 
                 contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
-                formatter={(val: any) => [formatCurrency(Number(val), currency)]}
+                formatter={(val: any) => [formatCurrency(Number(val), 'USD')]}
               />
               <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
               <Bar dataKey="Presupuesto" fill="#475569" radius={[4, 4, 0, 0]} />
@@ -298,6 +298,18 @@ export const MacroOverview: React.FC<MacroOverviewProps> = ({
 
                     {/* Financial Mini Grid */}
                     <div className="space-y-2 text-xs bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 mb-4">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Presupuesto u$s:</span>
+                        <span className="font-mono font-bold text-slate-200">{formatCurrency(p.budgetUSD, 'USD')}</span>
+                      </div>
+                      {p.totalM2 && p.totalM2 > 0 ? (
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Metros & u$s/m²:</span>
+                          <span className="font-mono font-bold text-emerald-400">
+                            {p.totalM2} m² (u$s {(p.budgetUSD / p.totalM2).toFixed(0)}/m²)
+                          </span>
+                        </div>
+                      ) : null}
                       <div className="flex justify-between">
                         <span className="text-slate-400">Ingresos Totales:</span>
                         <span className="font-mono font-bold text-emerald-400">{formatCurrency(income, currency)}</span>

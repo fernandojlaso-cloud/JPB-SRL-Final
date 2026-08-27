@@ -1,27 +1,19 @@
 import { Currency } from '../types';
 
-export const formatCurrency = (amount: number | undefined | null, currency: Currency = 'ARS'): string => {
+export const formatCurrency = (amount: number | undefined | null, currency: Currency = 'USD'): string => {
   if (amount === undefined || amount === null || isNaN(amount)) {
     return currency === 'ARS' ? '$ 0,00' : 'u$s 0,00';
   }
 
+  const isNegative = amount < 0;
+  const absAmount = Math.abs(amount);
+  const formattedAbs = formatNumber(absAmount, 2);
+
   if (currency === 'USD') {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'USD',
-      currencyDisplay: 'narrowSymbol',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount).replace('USD', 'u$s');
+    return isNegative ? `-u$s ${formattedAbs}` : `u$s ${formattedAbs}`;
   }
 
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    currencyDisplay: 'symbol',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
+  return isNegative ? `-$ ${formattedAbs}` : `$ ${formattedAbs}`;
 };
 
 export const formatNumber = (amount: number | undefined | null, decimals: number = 2): string => {

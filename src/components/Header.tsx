@@ -2,7 +2,6 @@ import React from 'react';
 import { 
   Building2, 
   DollarSign, 
-  ArrowRightLeft, 
   UploadCloud, 
   Download, 
   Plus, 
@@ -27,17 +26,15 @@ interface HeaderProps {
   projects: Project[];
   selectedProjectId: string; // 'macro' or project.id
   onSelectProject: (id: string) => void;
-  currency: Currency;
-  onToggleCurrency: (c: Currency) => void;
-  onOpenConverter: () => void;
+  currency?: Currency;
   onOpenImport: () => void;
   onExportExcel: () => void;
   onNewProject: () => void;
   onOpenManual?: () => void;
   onOpenBackup?: () => void;
-  totalIncomeARS: number;
+  totalIncomeARS?: number;
   totalIncomeUSD: number;
-  totalExpenseARS: number;
+  totalExpenseARS?: number;
   totalExpenseUSD: number;
   isCloudSynced?: boolean;
 }
@@ -46,26 +43,22 @@ export const Header: React.FC<HeaderProps> = ({
   projects,
   selectedProjectId,
   onSelectProject,
-  currency,
-  onToggleCurrency,
-  onOpenConverter,
+  currency = 'USD',
   onOpenImport,
   onExportExcel,
   onNewProject,
   onOpenManual,
   onOpenBackup,
-  totalIncomeARS,
   totalIncomeUSD,
-  totalExpenseARS,
   totalExpenseUSD,
-  isCloudSynced = true,
 }) => {
   const { userProfile, currentUser, logout, canManageObras, canBackup, isComitente } = useAuth();
   const currentProject = projects.find((p) => p.id === selectedProjectId);
   const isMacro = selectedProjectId === 'macro';
+  const displayCurrency: Currency = 'USD';
 
-  const income = currency === 'ARS' ? totalIncomeARS : totalIncomeUSD;
-  const expense = currency === 'ARS' ? totalExpenseARS : totalExpenseUSD;
+  const income = totalIncomeUSD;
+  const expense = totalExpenseUSD;
   const balance = income - expense;
   const balancePercent = income > 0 ? (expense / income) * 100 : 0;
 
@@ -129,42 +122,15 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            {/* Currency Selector (ARS / USD) */}
-            <div className="flex items-center bg-slate-800 p-1 rounded-lg border border-slate-700">
-              <button
-                id="currency-ars-btn"
-                onClick={() => onToggleCurrency('ARS')}
-                className={`px-3 py-1 text-xs font-bold rounded transition ${
-                  currency === 'ARS'
-                    ? 'bg-amber-500 text-slate-950 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                $ ARS
-              </button>
-              <button
-                id="currency-usd-btn"
-                onClick={() => onToggleCurrency('USD')}
-                className={`px-3 py-1 text-xs font-bold rounded transition ${
-                  currency === 'USD'
-                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                u$s USD
-              </button>
-            </div>
-
-            {/* Quick Currency Converter Button */}
-            <button
-              id="converter-modal-btn"
-              onClick={onOpenConverter}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition"
-              title="Calculadora y Conversor de Tipo de Cambio"
+            {/* Currency Indicator (USD Only) */}
+            <div 
+              id="currency-usd-badge" 
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/60 border border-emerald-500/40 rounded-lg text-xs font-bold text-emerald-300 shadow-sm"
+              title="Moneda de visualización y control: Dólares Americanos (u$s USD)"
             >
-              <ArrowRightLeft className="h-3.5 w-3.5 text-amber-400" />
-              <span className="hidden sm:inline">Conversor</span>
-            </button>
+              <DollarSign className="h-3.5 w-3.5 text-emerald-400" />
+              <span>u$s USD</span>
+            </div>
 
             {/* Manual de Usuario */}
             {onOpenManual && (
@@ -276,18 +242,18 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-4 bg-slate-950/60 px-3 py-1.5 rounded-lg border border-slate-800/80">
             <div className="flex items-center gap-1.5">
               <span className="text-slate-400">Ingresos:</span>
-              <span className="font-bold text-emerald-400">{formatCurrency(income, currency)}</span>
+              <span className="font-bold text-emerald-400">{formatCurrency(income, displayCurrency)}</span>
             </div>
             <div className="h-3 w-px bg-slate-700" />
             <div className="flex items-center gap-1.5">
               <span className="text-slate-400">Egresos:</span>
-              <span className="font-bold text-rose-400">{formatCurrency(expense, currency)}</span>
+              <span className="font-bold text-rose-400">{formatCurrency(expense, displayCurrency)}</span>
             </div>
             <div className="h-3 w-px bg-slate-700" />
             <div className="flex items-center gap-1.5">
               <span className="text-slate-400">Saldo Disp.:</span>
               <span className={`font-bold ${balance >= 0 ? 'text-amber-400' : 'text-rose-500'}`}>
-                {formatCurrency(balance, currency)}
+                {formatCurrency(balance, displayCurrency)}
               </span>
             </div>
           </div>

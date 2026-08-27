@@ -11,7 +11,11 @@ import {
   HelpCircle,
   Search,
   ChevronDown,
-  Check
+  Check,
+  ArrowRightLeft,
+  Coins,
+  Receipt,
+  Calculator
 } from 'lucide-react';
 import { Transaction, Project, AccountCategory, TransactionType } from '../types';
 import { parseArgentineNumber, formatCurrency, formatNumber } from '../utils/formatters';
@@ -26,6 +30,8 @@ interface TransactionModalProps {
   categories: AccountCategory[];
   defaultProjectId: string;
 }
+
+type CurrencyInputMode = 'USD' | 'ARS' | 'BIMONETARY';
 
 export const TransactionModal: React.FC<TransactionModalProps> = ({
   isOpen,
@@ -42,6 +48,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [categoryId, setCategoryId] = useState<string>('');
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [concept, setConcept] = useState<string>('');
+  const [currencyInputMode, setCurrencyInputMode] = useState<CurrencyInputMode>('USD');
   const [amountARS, setAmountARS] = useState<string>('');
   const [exchangeRate, setExchangeRate] = useState<string>('180,00');
   const [amountUSD, setAmountUSD] = useState<string>('');
@@ -71,6 +78,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setPaymentMethod(editingTransaction.paymentMethod || 'Transferencia');
       setStatus(editingTransaction.status || 'pagado');
       setNotes(editingTransaction.notes || '');
+
+      if (editingTransaction.amountUSD && !editingTransaction.amountARS) {
+        setCurrencyInputMode('USD');
+      } else if (editingTransaction.amountARS && !editingTransaction.amountUSD) {
+        setCurrencyInputMode('ARS');
+      } else {
+        setCurrencyInputMode('USD');
+      }
     } else {
       setType(initialType);
       const currentProj = projects.find(p => p.id === (defaultProjectId === 'macro' ? projects[0]?.id : defaultProjectId));
@@ -88,6 +103,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setPaymentMethod('Transferencia');
       setStatus('pagado');
       setNotes('');
+      setCurrencyInputMode('USD');
     }
     setCategorySearchQuery('');
     setIsCategoryPickerOpen(false);
@@ -197,16 +213,28 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const ars = parseArgentineNumber(amountARS);
-    const tc = parseArgentineNumber(exchangeRate) || 1;
-    const usd = parseArgentineNumber(amountUSD) || (tc > 0 ? ars / tc : 0);
+    const rawArs = parseArgentineNumber(amountARS);
+    const rawTc = parseArgentineNumber(exchangeRate) || 1;
+    let rawUsd = parseArgentineNumber(amountUSD);
+
+    if (currencyInputMode === 'USD' && rawUsd > 0 && rawArs <= 0) {
+      // If entered in USD, guarantee ARS equivalent
+      rawUsd = rawUsd;
+    } else if (currencyInputMode === 'ARS' && rawArs > 0 && rawUsd <= 0) {
+      rawUsd = rawTc > 0 ? rawArs / rawTc : 0;
+    } else if (rawUsd <= 0 && rawArs > 0 && rawTc > 0) {
+      rawUsd = rawArs / rawTc;
+    }
+
+    const finalARS = rawArs > 0 ? rawArs : (rawUsd > 0 && rawTc > 0 ? rawUsd * rawTc : 0);
+    const finalUSD = rawUsd > 0 ? rawUsd : (rawArs > 0 && rawTc > 0 ? rawArs / rawTc : 0);
 
     if (!concept.trim()) {
       alert('Por favor complete el concepto del movimiento.');
       return;
     }
-    if (ars <= 0 && usd <= 0) {
-      alert('Por favor ingrese un monto válido en pesos o dólares.');
+    if (finalARS <= 0 && finalUSD <= 0) {
+      alert('Por favor ingrese un monto válido en dólares o pesos.');
       return;
     }
 
@@ -217,9 +245,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         categoryId: categoryId || selectedCategory?.id || 'default',
         date,
         concept: concept.trim(),
-        amountARS: ars,
-        amountUSD: usd,
-        exchangeRate: tc,
+        amountARS: finalARS,
+        amountUSD: finalUSD,
+        exchangeRate: rawTc,
         payerOrRecipient: payerOrRecipient.trim(),
         paymentMethod,
         status,
@@ -466,93 +494,301 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </div>
           </div>
 
-          {/* Bimonetary Inputs Box (The Core Excel Converter Mechanism) */}
-          <div className="bg-slate-950/90 p-4 rounded-xl border border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                Imputación Bimonetaria & Tipo de Cambio
-              </span>
-              <span className="text-[11px] text-slate-400">
-                Al cargar 2 valores se calcula automáticamente el tercero
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Selector de Sistema de Carga de Moneda */}
+          <div className="bg-slate-950/90 p-4 rounded-xl border border-slate-800 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-800/80 pb-3">
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold text-slate-300">
-                    Monto en Pesos ($ ARS)
-                  </label>
-                  {parseArgentineNumber(amountARS) > 0 && (
-                    <span className="text-[10px] font-mono text-slate-400">
-                      $ {formatNumber(parseArgentineNumber(amountARS), 2)}
-                    </span>
-                  )}
-                </div>
-                <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">$</span>
-                  <input
-                    id="tx-amount-ars"
-                    type="text"
-                    value={amountARS}
-                    onChange={(e) => handleARSChange(e.target.value)}
-                    onBlur={handleARSBlur}
-                    placeholder="0,00"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-sm font-mono text-slate-100 font-bold focus:outline-none focus:border-amber-400"
-                  />
-                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                  <Coins className="h-4 w-4 text-amber-400" />
+                  Sistema de Carga de Moneda
+                </span>
+                <p className="text-[11px] text-slate-400">
+                  Seleccione cómo desea ingresar el comprobante o gasto
+                </p>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold text-slate-300">
-                    Tipo de Cambio (t.c.)
-                  </label>
-                  {parseArgentineNumber(exchangeRate) > 0 && (
-                    <span className="text-[10px] font-mono text-amber-300/80">
-                      t.c. {formatNumber(parseArgentineNumber(exchangeRate), 2)}
-                    </span>
-                  )}
-                </div>
-                <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">t.c.</span>
-                  <input
-                    id="tx-exchange-rate"
-                    type="text"
-                    value={exchangeRate}
-                    onChange={(e) => handleTCChange(e.target.value)}
-                    onBlur={handleTCBlur}
-                    placeholder="1.500,00"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm font-mono text-amber-300 font-bold focus:outline-none focus:border-amber-400"
-                  />
-                </div>
-              </div>
+              {/* Segmented Mode Selector */}
+              <div className="flex items-center bg-slate-900 p-1 rounded-lg border border-slate-800">
+                <button
+                  type="button"
+                  id="mode-usd-btn"
+                  onClick={() => setCurrencyInputMode('USD')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                    currencyInputMode === 'USD'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <DollarSign className="h-3.5 w-3.5" />
+                  Cargar en Dólares (u$s)
+                </button>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold text-slate-300">
-                    Monto en Dólares (u$s USD)
-                  </label>
-                  {parseArgentineNumber(amountUSD) > 0 && (
-                    <span className="text-[10px] font-mono text-emerald-400">
-                      u$s {formatNumber(parseArgentineNumber(amountUSD), 2)}
-                    </span>
-                  )}
-                </div>
-                <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-xs text-emerald-400 font-bold">u$s</span>
-                  <input
-                    id="tx-amount-usd"
-                    type="text"
-                    value={amountUSD}
-                    onChange={(e) => handleUSDChange(e.target.value)}
-                    onBlur={handleUSDBlur}
-                    placeholder="0,00"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm font-mono text-emerald-400 font-bold focus:outline-none focus:border-amber-400"
-                  />
-                </div>
+                <button
+                  type="button"
+                  id="mode-ars-btn"
+                  onClick={() => setCurrencyInputMode('ARS')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                    currencyInputMode === 'ARS'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                  Cargar en Pesos ($)
+                </button>
+
+                <button
+                  type="button"
+                  id="mode-bimonetary-btn"
+                  onClick={() => setCurrencyInputMode('BIMONETARY')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                    currencyInputMode === 'BIMONETARY'
+                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                  Bimonetario
+                </button>
               </div>
             </div>
+
+            {/* MODO 1: CARGA DIRECTA EN DÓLARES (USD) */}
+            {currencyInputMode === 'USD' && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                  <div className="md:col-span-7">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-emerald-400 flex items-center gap-1">
+                        <DollarSign className="h-3.5 w-3.5" />
+                        Monto en Dólares (u$s USD) <span className="text-rose-400">*</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-sans">
+                        Moneda oficial del presupuesto
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-emerald-400">
+                        u$s
+                      </span>
+                      <input
+                        id="tx-amount-usd-direct"
+                        type="text"
+                        value={amountUSD}
+                        onChange={(e) => handleUSDChange(e.target.value)}
+                        onBlur={handleUSDBlur}
+                        placeholder="0,00"
+                        className="w-full bg-slate-900 border-2 border-emerald-500/50 rounded-xl pl-12 pr-4 py-2.5 text-lg font-mono text-emerald-300 font-bold focus:outline-none focus:border-emerald-400 shadow-inner"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-5">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-semibold text-slate-300">
+                        Tipo de Cambio Ref. (t.c.)
+                      </label>
+                      {parseArgentineNumber(exchangeRate) > 0 && (
+                        <span className="text-[10px] font-mono text-amber-300">
+                          t.c. {formatNumber(parseArgentineNumber(exchangeRate), 2)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">
+                        t.c.
+                      </span>
+                      <input
+                        id="tx-exchange-rate-usd-mode"
+                        type="text"
+                        value={exchangeRate}
+                        onChange={(e) => handleTCChange(e.target.value)}
+                        onBlur={handleTCBlur}
+                        placeholder="1.500,00"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-sm font-mono text-slate-200 font-bold focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live ARS Equivalent Pill */}
+                <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2.5 flex items-center justify-between text-xs">
+                  <span className="text-slate-400 flex items-center gap-1.5">
+                    <Coins className="h-3.5 w-3.5 text-slate-400" />
+                    Equivalente calculado en Pesos ($ ARS):
+                  </span>
+                  <span className="font-mono font-bold text-slate-200">
+                    $ {formatNumber(parseArgentineNumber(amountARS) || (parseArgentineNumber(amountUSD) * (parseArgentineNumber(exchangeRate) || 1)), 2)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* MODO 2: CARGA EN PESOS (ARS) CON CONVERSOR */}
+            {currencyInputMode === 'ARS' && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                  <div className="md:col-span-7">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-amber-400 flex items-center gap-1">
+                        <Receipt className="h-3.5 w-3.5" />
+                        Monto en Pesos ($ ARS) <span className="text-rose-400">*</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-sans">
+                        Según factura o ticket
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-amber-400">
+                        $
+                      </span>
+                      <input
+                        id="tx-amount-ars-mode"
+                        type="text"
+                        value={amountARS}
+                        onChange={(e) => handleARSChange(e.target.value)}
+                        onBlur={handleARSBlur}
+                        placeholder="0,00"
+                        className="w-full bg-slate-900 border-2 border-amber-500/50 rounded-xl pl-8 pr-4 py-2.5 text-lg font-mono text-amber-300 font-bold focus:outline-none focus:border-amber-400 shadow-inner"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-5">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-semibold text-slate-300">
+                        Tipo de Cambio (t.c.) <span className="text-rose-400">*</span>
+                      </label>
+                      {parseArgentineNumber(exchangeRate) > 0 && (
+                        <span className="text-[10px] font-mono text-amber-300">
+                          t.c. {formatNumber(parseArgentineNumber(exchangeRate), 2)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">
+                        t.c.
+                      </span>
+                      <input
+                        id="tx-exchange-rate-ars-mode"
+                        type="text"
+                        value={exchangeRate}
+                        onChange={(e) => handleTCChange(e.target.value)}
+                        onBlur={handleTCBlur}
+                        placeholder="1.500,00"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-sm font-mono text-slate-200 font-bold focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Resulting USD Conversion Card */}
+                <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+                      <DollarSign className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-emerald-300 block">
+                        Conversión a Presupuesto General (USD)
+                      </span>
+                      <span className="text-[11px] text-emerald-400/80">
+                        Se imputa a la obra al tipo de cambio indicado
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-base font-black font-mono text-emerald-400">
+                      u$s {formatNumber(parseArgentineNumber(amountUSD) || (parseArgentineNumber(exchangeRate) > 0 ? parseArgentineNumber(amountARS) / parseArgentineNumber(exchangeRate) : 0), 2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODO 3: MODO BIMONETARIO SIMULTÁNEO */}
+            {currencyInputMode === 'BIMONETARY' && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-300">
+                        Monto en Pesos ($ ARS)
+                      </label>
+                      {parseArgentineNumber(amountARS) > 0 && (
+                        <span className="text-[10px] font-mono text-slate-400">
+                          $ {formatNumber(parseArgentineNumber(amountARS), 2)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">$</span>
+                      <input
+                        id="tx-amount-ars-bimonetary"
+                        type="text"
+                        value={amountARS}
+                        onChange={(e) => handleARSChange(e.target.value)}
+                        onBlur={handleARSBlur}
+                        placeholder="0,00"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-sm font-mono text-slate-100 font-bold focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-300">
+                        Tipo de Cambio (t.c.)
+                      </label>
+                      {parseArgentineNumber(exchangeRate) > 0 && (
+                        <span className="text-[10px] font-mono text-amber-300/80">
+                          t.c. {formatNumber(parseArgentineNumber(exchangeRate), 2)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">t.c.</span>
+                      <input
+                        id="tx-exchange-rate-bimonetary"
+                        type="text"
+                        value={exchangeRate}
+                        onChange={(e) => handleTCChange(e.target.value)}
+                        onBlur={handleTCBlur}
+                        placeholder="1.500,00"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm font-mono text-amber-300 font-bold focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-300">
+                        Monto en Dólares (u$s USD)
+                      </label>
+                      {parseArgentineNumber(amountUSD) > 0 && (
+                        <span className="text-[10px] font-mono text-emerald-400">
+                          u$s {formatNumber(parseArgentineNumber(amountUSD), 2)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-xs text-emerald-400 font-bold">u$s</span>
+                      <input
+                        id="tx-amount-usd-bimonetary"
+                        type="text"
+                        value={amountUSD}
+                        onChange={(e) => handleUSDChange(e.target.value)}
+                        onBlur={handleUSDBlur}
+                        placeholder="0,00"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm font-mono text-emerald-400 font-bold focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Payment Details */}

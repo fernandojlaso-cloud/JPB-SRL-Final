@@ -5,6 +5,11 @@ import {
   Package, 
   ScrollText, 
   Truck, 
+  Building2,
+  Wrench,
+  Zap,
+  Paintbrush,
+  ShieldCheck,
   Plus, 
   PieChart as PieIcon, 
   BarChart3, 
@@ -23,7 +28,7 @@ import {
   Cell 
 } from 'recharts';
 import { Transaction, Project, AccountCategory, Currency } from '../types';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatNumber } from '../utils/formatters';
 import { TransactionsTable } from './TransactionsTable';
 
 interface ExpensesTabProps {
@@ -36,6 +41,40 @@ interface ExpensesTabProps {
   onDeleteTransaction: (id: string) => void;
   selectedProjectId: string;
 }
+
+// Helper to choose appropriate Lucide icon by category code/name
+const getCategoryIcon = (code: string, name: string) => {
+  const c = (code || '').toUpperCase();
+  const n = (name || '').toLowerCase();
+  if (c.includes('MO') || n.includes('mano de obra') || n.includes('albañil') || n.includes('demolic') || n.includes('cuadrilla')) {
+    return <HardHat className="h-4 w-4" />;
+  }
+  if (c.includes('MAT') || n.includes('material') || n.includes('acopio') || n.includes('hierro') || n.includes('cemento') || n.includes('árido')) {
+    return <Package className="h-4 w-4" />;
+  }
+  if (c.includes('HON') || n.includes('honorario') || n.includes('direcci') || n.includes('arquitect') || n.includes('técnic')) {
+    return <ScrollText className="h-4 w-4" />;
+  }
+  if (c.includes('LOG') || c.includes('FLET') || n.includes('flete') || n.includes('volquete') || n.includes('transporte')) {
+    return <Truck className="h-4 w-4" />;
+  }
+  if (c.includes('PERM') || n.includes('derecho') || n.includes('tasa') || n.includes('muni') || n.includes('plano')) {
+    return <ShieldCheck className="h-4 w-4" />;
+  }
+  if (c.includes('ESTR') || n.includes('hormigón') || n.includes('estructura')) {
+    return <Building2 className="h-4 w-4" />;
+  }
+  if (c.includes('PINT') || n.includes('pintur') || n.includes('yeso')) {
+    return <Paintbrush className="h-4 w-4" />;
+  }
+  if (c.includes('ELEC') || n.includes('electr') || n.includes('iluminac')) {
+    return <Zap className="h-4 w-4" />;
+  }
+  if (c.includes('SAN') || c.includes('PLO') || n.includes('sanitar') || n.includes('plomer') || n.includes('gas')) {
+    return <Wrench className="h-4 w-4" />;
+  }
+  return <Layers className="h-4 w-4" />;
+};
 
 export const ExpensesTab: React.FC<ExpensesTabProps> = ({
   transactions,
@@ -53,31 +92,49 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
     return transactions.filter((t) => t.type === 'egreso');
   }, [transactions]);
 
-  // Totals
+  // Overall Totals
   const totalARS = expenseTransactions.reduce((acc, t) => acc + t.amountARS, 0);
   const totalUSD = expenseTransactions.reduce((acc, t) => acc + t.amountUSD, 0);
 
-  // Mano de Obra
-  const moTx = expenseTransactions.filter((t) => t.categoryId === 'cat-mo');
-  const moARS = moTx.reduce((acc, t) => acc + t.amountARS, 0);
-  const moUSD = moTx.reduce((acc, t) => acc + t.amountUSD, 0);
+  // Dynamic ranking of expense categories sorted from highest to lowest spending (de mayor a menor)
+  const dynamicExpenseCategories = useMemo(() => {
+    const expenseCats = categories.filter((c) => c.type === 'egreso');
+    
+    // Group transactions by categoryId
+    const map = new Map<string, { ars: number; usd: number; count: number }>();
+    expenseTransactions.forEach((tx) => {
+      const prev = map.get(tx.categoryId) || { ars: 0, usd: 0, count: 0 };
+      map.set(tx.categoryId, {
+        ars: prev.ars + tx.amountARS,
+        usd: prev.usd + tx.amountUSD,
+        count: prev.count + 1,
+      });
+    });
 
-  // Materiales
-  const matTx = expenseTransactions.filter((t) => t.categoryId === 'cat-mat');
-  const matARS = matTx.reduce((acc, t) => acc + t.amountARS, 0);
-  const matUSD = matTx.reduce((acc, t) => acc + t.amountUSD, 0);
+    const list = expenseCats.map((cat) => {
+      const stats = map.get(cat.id) || { ars: 0, usd: 0, count: 0 };
+      const val = currency === 'ARS' ? stats.ars : stats.usd;
+      const totalVal = currency === 'ARS' ? totalARS : totalUSD;
+      const percent = totalVal > 0 ? (val / totalVal) * 100 : 0;
 
-  // Honorarios y Permisos
-  const honTx = expenseTransactions.filter((t) => t.categoryId === 'cat-hon' || t.categoryId === 'cat-perm');
-  const honARS = honTx.reduce((acc, t) => acc + t.amountARS, 0);
-  const honUSD = honTx.reduce((acc, t) => acc + t.amountUSD, 0);
+      return {
+        category: cat,
+        amountARS: stats.ars,
+        amountUSD: stats.usd,
+        value: val,
+        percent,
+        count: stats.count,
+      };
+    });
 
-  // Logística / Volquetes
-  const logTx = expenseTransactions.filter((t) => t.categoryId === 'cat-log');
-  const logARS = logTx.reduce((acc, t) => acc + t.amountARS, 0);
-  const logUSD = logTx.reduce((acc, t) => acc + t.amountUSD, 0);
+    // Sort descending by total spent in active currency (de mayor a menor)
+    list.sort((a, b) => b.value - a.value);
 
-  // Chart data: Rubros Distribution
+    // Return the top 4 categories to maintain the 5 indicators (Total + 4 top rubros)
+    return list.slice(0, 4);
+  }, [categories, expenseTransactions, currency, totalARS, totalUSD]);
+
+  // Chart data: Rubros Distribution in USD
   const categoryChartData = useMemo(() => {
     const map = new Map<string, { name: string; value: number; color: string; count: number }>();
     
@@ -85,7 +142,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
       const cat = categories.find((c) => c.id === tx.categoryId);
       const catName = cat ? cat.name : 'Varios';
       const catColor = cat ? cat.color : '#64748B';
-      const val = currency === 'ARS' ? tx.amountARS : tx.amountUSD;
+      const val = tx.amountUSD;
 
       if (!map.has(catName)) {
         map.set(catName, { name: catName, value: 0, color: catColor, count: 0 });
@@ -96,7 +153,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
     });
 
     return Array.from(map.values()).sort((a, b) => b.value - a.value);
-  }, [expenseTransactions, categories, currency]);
+  }, [expenseTransactions, categories]);
 
   // Filtered by Rubro Chip if selected
   const displayedTransactions = useMemo(() => {
@@ -130,87 +187,87 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
         </button>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards: Dynamic 5 Indicators (Total + 4 Top Expense Categories Sorted Descending) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Total Egresos */}
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow">
+        {/* Indicator 1: Total Egresos */}
+        <div 
+          onClick={() => setActiveCategoryFilter('all')}
+          className={`bg-slate-900 border p-4 rounded-2xl shadow cursor-pointer transition transform hover:-translate-y-0.5 ${
+            activeCategoryFilter === 'all' 
+              ? 'border-rose-500/70 ring-2 ring-rose-500/20' 
+              : 'border-slate-800 hover:border-slate-700'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Egresos</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-rose-300">Total Egresos</span>
             <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400">
               <DollarSign className="h-4 w-4" />
             </div>
           </div>
           <div className="text-2xl font-black text-white font-mono tracking-tight">
-            {formatCurrency(currency === 'ARS' ? totalARS : totalUSD, currency)}
+            {formatCurrency(totalUSD, 'USD')}
           </div>
-          <div className="text-xs text-rose-400/80 font-mono mt-1">
-            {currency === 'ARS' ? formatCurrency(totalUSD, 'USD') : formatCurrency(totalARS, 'ARS')}
-          </div>
-        </div>
-
-        {/* Mano de Obra */}
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Mano de Obra</span>
-            <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400">
-              <HardHat className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-blue-400 font-mono tracking-tight">
-            {formatCurrency(currency === 'ARS' ? moARS : moUSD, currency)}
-          </div>
-          <div className="text-xs text-slate-400 font-mono mt-1">
-            {totalARS > 0 ? ((moARS / totalARS) * 100).toFixed(1) : 0}% del costo total
+          <div className="text-xs text-rose-400/80 font-mono mt-1 flex items-center justify-between">
+            <span className="text-[11px] text-slate-400 font-mono">Equiv. $ {formatNumber(totalARS, 0)} ARS</span>
+            <span className="text-[11px] text-slate-400 font-sans">{expenseTransactions.length} comprobantes</span>
           </div>
         </div>
 
-        {/* Materiales y Acopios */}
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Materiales & Acopios</span>
-            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400">
-              <Package className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-amber-400 font-mono tracking-tight">
-            {formatCurrency(currency === 'ARS' ? matARS : matUSD, currency)}
-          </div>
-          <div className="text-xs text-slate-400 font-mono mt-1">
-            {totalARS > 0 ? ((matARS / totalARS) * 100).toFixed(1) : 0}% del costo total
-          </div>
-        </div>
+        {/* Indicators 2 to 5: Top 4 Rubros (De Mayor a Menor) */}
+        {dynamicExpenseCategories.map((item, idx) => {
+          const isSelected = activeCategoryFilter === item.category.id;
+          const catColor = item.category.color || '#3B82F6';
 
-        {/* Honorarios & Tasas */}
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Honorarios & Tasas</span>
-            <div className="p-2 rounded-xl bg-purple-500/20 text-purple-400">
-              <ScrollText className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-purple-400 font-mono tracking-tight">
-            {formatCurrency(currency === 'ARS' ? honARS : honUSD, currency)}
-          </div>
-          <div className="text-xs text-slate-400 font-mono mt-1">
-            {honTx.length} pagos liquidados
-          </div>
-        </div>
+          return (
+            <div 
+              key={item.category.id}
+              onClick={() => setActiveCategoryFilter(isSelected ? 'all' : item.category.id)}
+              className={`bg-slate-900 border p-4 rounded-2xl shadow cursor-pointer transition transform hover:-translate-y-0.5 relative overflow-hidden ${
+                isSelected 
+                  ? 'ring-2' 
+                  : 'border-slate-800 hover:border-slate-700'
+              }`}
+              style={
+                isSelected 
+                  ? { borderColor: catColor, boxShadow: `0 0 0 2px ${catColor}33` } 
+                  : undefined
+              }
+            >
+              {/* Ranking Badge */}
+              <div className="flex items-center justify-between text-slate-400 mb-2">
+                <div className="flex items-center gap-1.5 overflow-hidden">
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
+                    #{idx + 1}
+                  </span>
+                  <span 
+                    className="text-xs font-semibold uppercase tracking-wider truncate max-w-[110px]"
+                    title={item.category.name}
+                  >
+                    {item.category.name}
+                  </span>
+                </div>
+                <div 
+                  className="p-2 rounded-xl shrink-0"
+                  style={{ backgroundColor: `${catColor}25`, color: catColor }}
+                >
+                  {getCategoryIcon(item.category.code, item.category.name)}
+                </div>
+              </div>
 
-        {/* Logística y Volquetes */}
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Volquetes & Fletes</span>
-            <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400">
-              <Truck className="h-4 w-4" />
+              <div 
+                className="text-2xl font-black font-mono tracking-tight truncate"
+                style={{ color: catColor }}
+              >
+                {formatCurrency(item.amountUSD, 'USD')}
+              </div>
+
+              <div className="text-xs text-slate-400 font-mono mt-1 flex items-center justify-between">
+                <span>{item.percent.toFixed(1)}% del costo</span>
+                <span className="text-[11px] font-sans">{item.count} {item.count === 1 ? 'pago' : 'pagos'}</span>
+              </div>
             </div>
-          </div>
-          <div className="text-2xl font-black text-indigo-400 font-mono tracking-tight">
-            {formatCurrency(currency === 'ARS' ? logARS : logUSD, currency)}
-          </div>
-          <div className="text-xs text-slate-400 font-mono mt-1">
-            {logTx.length} viajes registrados
-          </div>
-        </div>
+          );
+        })}
       </div>
 
       {/* Visual Analytics */}
@@ -223,7 +280,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
               <h3 className="font-bold text-sm text-slate-100">Distribución de Costos por Rubro</h3>
             </div>
             <span className="text-xs text-slate-400">
-              Moneda: {currency === 'ARS' ? 'Pesos ($)' : 'Dólares (u$s)'}
+              Moneda: Dólares Americanos (u$s USD)
             </span>
           </div>
 
@@ -255,7 +312,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
                   />
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
-                    formatter={(val: any) => [formatCurrency(Number(val), currency), 'Gasto']}
+                    formatter={(val: any) => [formatCurrency(Number(val), 'USD'), 'Gasto USD']}
                   />
                   <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                     {categoryChartData.map((entry, index) => (
@@ -275,6 +332,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
               <PieIcon className="h-4 w-4 text-amber-400" />
               <h3 className="font-bold text-sm text-slate-100">Participación % del Costo</h3>
             </div>
+            <span className="text-xs text-slate-400 font-mono">u$s USD</span>
           </div>
 
           <div className="h-64 w-full flex items-center justify-center">
@@ -299,7 +357,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
                   </Pie>
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
-                    formatter={(val: any) => [formatCurrency(Number(val), currency), 'Total']}
+                    formatter={(val: any) => [formatCurrency(Number(val), 'USD'), 'Total USD']}
                   />
                 </PieChart>
               </ResponsiveContainer>

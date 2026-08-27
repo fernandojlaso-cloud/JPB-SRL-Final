@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Building2, Save, DollarSign } from 'lucide-react';
+import { X, Building2, Save, DollarSign, Ruler, Sparkles } from 'lucide-react';
 import { Project } from '../types';
-import { parseArgentineNumber } from '../utils/formatters';
+import { parseArgentineNumber, formatNumber } from '../utils/formatters';
 
 interface ProjectModalProps {
   isOpen: boolean;
@@ -21,9 +21,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const [address, setAddress] = useState('');
   const [client, setClient] = useState('');
   const [status, setStatus] = useState<'active' | 'completed' | 'on-hold'>('active');
-  const [budgetARS, setBudgetARS] = useState('15000000');
+  const [totalM2, setTotalM2] = useState<string>('250.00');
+  const [budgetUSD, setBudgetUSD] = useState('85000.00');
   const [defaultExchangeRate, setDefaultExchangeRate] = useState('180.00');
-  const [budgetUSD, setBudgetUSD] = useState((15000000 / 180).toFixed(2));
+  const [budgetARS, setBudgetARS] = useState((85000 * 180).toFixed(2));
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
@@ -33,9 +34,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       setAddress(editingProject.address || '');
       setClient(editingProject.client || '');
       setStatus(editingProject.status);
-      setBudgetARS(editingProject.budgetARS.toString());
-      setDefaultExchangeRate(editingProject.defaultExchangeRate.toString());
-      setBudgetUSD(editingProject.budgetUSD.toString());
+      setTotalM2(editingProject.totalM2 ? editingProject.totalM2.toString() : '250.00');
+      setBudgetUSD(editingProject.budgetUSD ? editingProject.budgetUSD.toString() : '85000.00');
+      setDefaultExchangeRate(editingProject.defaultExchangeRate ? editingProject.defaultExchangeRate.toString() : '180.00');
+      setBudgetARS(editingProject.budgetARS ? editingProject.budgetARS.toString() : ((editingProject.budgetUSD || 85000) * (editingProject.defaultExchangeRate || 180)).toFixed(2));
       setNotes(editingProject.notes || '');
     } else {
       setName('');
@@ -43,14 +45,24 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       setAddress('');
       setClient('');
       setStatus('active');
-      setBudgetARS('15000000');
+      setTotalM2('250.00');
+      setBudgetUSD('85000.00');
       setDefaultExchangeRate('180.00');
-      setBudgetUSD((15000000 / 180).toFixed(2));
+      setBudgetARS((85000 * 180).toFixed(2));
       setNotes('');
     }
   }, [editingProject, isOpen]);
 
   if (!isOpen) return null;
+
+  const handleBudgetUSDChange = (val: string) => {
+    setBudgetUSD(val);
+    const usd = parseArgentineNumber(val);
+    const tc = parseArgentineNumber(defaultExchangeRate);
+    if (tc > 0 && usd > 0) {
+      setBudgetARS((usd * tc).toFixed(2));
+    }
+  };
 
   const handleBudgetARSChange = (val: string) => {
     setBudgetARS(val);
@@ -64,11 +76,15 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const handleExchangeRateChange = (val: string) => {
     setDefaultExchangeRate(val);
     const tc = parseArgentineNumber(val);
-    const ars = parseArgentineNumber(budgetARS);
-    if (tc > 0 && ars > 0) {
-      setBudgetUSD((ars / tc).toFixed(2));
+    const usd = parseArgentineNumber(budgetUSD);
+    if (tc > 0 && usd > 0) {
+      setBudgetARS((usd * tc).toFixed(2));
     }
   };
+
+  const m2Num = parseArgentineNumber(totalM2);
+  const usdNum = parseArgentineNumber(budgetUSD);
+  const costPerM2USD = m2Num > 0 && usdNum > 0 ? usdNum / m2Num : 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,9 +93,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       return;
     }
 
-    const ars = parseArgentineNumber(budgetARS);
+    const m2 = parseArgentineNumber(totalM2);
+    const usd = parseArgentineNumber(budgetUSD);
     const tc = parseArgentineNumber(defaultExchangeRate) || 180;
-    const usd = parseArgentineNumber(budgetUSD) || (tc > 0 ? ars / tc : 0);
+    const ars = parseArgentineNumber(budgetARS) || (usd * tc);
 
     onSave(
       {
@@ -89,6 +106,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         client: client.trim(),
         status: status,
         startDate: editingProject?.startDate || new Date().toISOString().split('T')[0],
+        totalM2: m2 > 0 ? m2 : 0,
         budgetARS: ars,
         budgetUSD: usd,
         defaultExchangeRate: tc,
@@ -115,7 +133,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 {editingProject ? 'Editar Obra' : 'Alta de Nueva Obra'}
               </h3>
               <p className="text-xs text-slate-400">
-                {editingProject ? 'Modificar datos, presupuestos y estado de la obra' : 'Registra un nuevo frente de trabajo o desarrollo'}
+                {editingProject ? 'Modificar datos, metros construidos y presupuesto en dólares' : 'Registra un nuevo frente de trabajo o desarrollo'}
               </p>
             </div>
           </div>
@@ -200,23 +218,63 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             </div>
           </div>
 
-          {/* Budget Dual Inputs */}
+          {/* APARTADO: METROS TOTALES DE CONSTRUCCIÓN */}
+          <div className="bg-emerald-950/30 p-3.5 rounded-xl border border-emerald-500/30 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-emerald-300 uppercase tracking-wider">
+                <Ruler className="h-4 w-4 text-emerald-400" />
+                <span>Metros Totales a Construir (m²)</span>
+              </label>
+              {costPerM2USD > 0 && (
+                <span className="text-[11px] font-mono font-bold text-amber-300 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/40">
+                  u$s {formatNumber(costPerM2USD, 2)} / m²
+                </span>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+              <div>
+                <input
+                  id="project-total-m2"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={totalM2}
+                  onChange={(e) => setTotalM2(e.target.value)}
+                  placeholder="Ej: 250.00"
+                  className="w-full bg-slate-950 border border-emerald-500/50 rounded-lg px-3 py-2 text-sm font-mono text-emerald-200 font-bold focus:outline-none focus:border-emerald-400"
+                  required
+                />
+              </div>
+              <p className="text-[11px] text-slate-400 leading-tight">
+                Superficie cubierta y semicubierta computada para el cálculo de costo por metro cuadrado.
+              </p>
+            </div>
+          </div>
+
+          {/* Presupuesto en Dólares Americanos & Tipo de Cambio */}
           <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
-            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider block">
-              Presupuesto Meta & Tipo de Cambio
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider block">
+                Presupuesto Meta (u$s USD) & Tipo de Cambio
+              </span>
+              <span className="text-[10px] text-slate-400">
+                Presupuesto base en Dólares
+              </span>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                  Monto en $ (ARS)
+                <label className="block text-[11px] font-semibold text-emerald-400 mb-1">
+                  Presupuesto u$s (USD) <span className="text-rose-400">*</span>
                 </label>
                 <input
                   type="number"
                   step="any"
-                  value={budgetARS}
-                  onChange={(e) => handleBudgetARSChange(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm font-mono text-white font-bold focus:outline-none focus:border-amber-400"
+                  value={budgetUSD}
+                  onChange={(e) => handleBudgetUSDChange(e.target.value)}
+                  className="w-full bg-slate-900 border border-emerald-500/40 rounded-lg px-3 py-1.5 text-sm font-mono text-emerald-300 font-bold focus:outline-none focus:border-emerald-400"
+                  required
                 />
               </div>
               <div>
@@ -225,22 +283,22 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 </label>
                 <input
                   type="number"
-                  step="0.5"
+                  step="any"
                   value={defaultExchangeRate}
                   onChange={(e) => handleExchangeRateChange(e.target.value)}
                   className="w-full bg-slate-900 border border-amber-500/40 rounded-lg px-3 py-1.5 text-sm font-mono text-amber-300 font-bold focus:outline-none focus:border-amber-400"
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-emerald-400 mb-1">
-                  Monto en u$s (USD)
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  Equivalente en $ (ARS)
                 </label>
                 <input
                   type="number"
                   step="any"
-                  value={budgetUSD}
-                  onChange={(e) => setBudgetUSD(e.target.value)}
-                  className="w-full bg-slate-900 border border-emerald-500/40 rounded-lg px-3 py-1.5 text-sm font-mono text-emerald-300 font-bold focus:outline-none focus:border-emerald-400"
+                  value={budgetARS}
+                  onChange={(e) => handleBudgetARSChange(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm font-mono text-slate-300 font-bold focus:outline-none focus:border-amber-400"
                 />
               </div>
             </div>
@@ -254,7 +312,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Detalle del contrato, plazos estimados, etc."
+              placeholder="Detalle del contrato, plazos estimados, tipología constructiva, etc."
               className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400 resize-none"
             />
           </div>

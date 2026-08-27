@@ -17,7 +17,10 @@ import {
   Building2,
   CheckCircle2,
   AlertTriangle,
-  FolderDown
+  FolderDown,
+  Sparkles,
+  Calculator,
+  Percent
 } from 'lucide-react';
 import { JpbSrlLogo } from './JpbSrlLogo';
 
@@ -50,7 +53,7 @@ Esta plataforma es una solución integral para el control de **Origen y Aplicaci
 ### 2. ESTRUCTURA Y NAVEGACIÓN PRINCIPAL
 - **Visión Macro (Todas las Obras)**: Vista consolidada de tesorería, total recaudado, total ejecutado y saldos combinados de todas las obras activas.
 - **Obra Específica (ej. Casa Mily y Fer)**: Permite ingresar al detalle granular de movimientos, comprobantes, contratos y desvíos de una obra puntual.
-- **Selector Bimonetario ($ ARS / u$s USD)**: Toda la aplicación conmuta instantáneamente entre Pesos y Dólares respetando el Tipo de Cambio histórico de cada transacción.
+- **Control Presupuestario en Dólares (u$s USD)**: Toda la evaluación de desvíos, presupuestos meta y costos por m² se gestiona en moneda dura.
 
 ---
 
@@ -63,25 +66,32 @@ Esta plataforma es una solución integral para el control de **Origen y Aplicaci
 
 ### 4. MÓDULO 2: APLICACIÓN DE FONDOS (EGRESOS & GASTOS)
 - **Carga de Comprobantes y Gastos**: Permite imputar comprobantes con fecha, rubro, proveedor, importe en $ y/o u$s, tipo de cambio y estado de pago (Pagado / Pendiente).
-- **Centros de Costos y Contratistas Principales**:
-  * **Walter**: M.O y materiales con motor y filtro s/presupuesto ($700.000)
-  * **Lázaro**: M.O. demolición ($1.430.000 + adicional $277.400)
-  * **Lázaro**: M.O. albañilería general s/presupuesto ($4.600.000)
-  * **Miguel**: M.O. plomería completa s/presupuesto ($1.205.000)
-  * **Marcelo Meneghello**: M.O. electricista s/presupuesto ($461.000)
-  * **Carlitos**: M.O. pintura integral y techados
-  * **Materiales y Acopios**: Corralones, hierros, cemento, áridos.
-  * **Honorarios y Dirección de Obra**: Arquitectura e ingeniería.
+- **Conversor Bidireccional Integrado**: Permite registrar gastos en Pesos ingresando el tipo de cambio del comprobante para su cómputo automático en Dólares u$s.
 
 ---
 
-### 5. MÓDULO 3: PRESUPUESTO & CONTROL DE DESVÍOS
-- **Comparativa Presupuestado vs. Real**: Muestra el porcentaje ejecutado en tiempo real.
-- **Alertas Visuales de Desvío**: 
-  * Verde (0% - 85%): Dentro del presupuesto.
-  * Amarillo (86% - 100%): Próximo al límite contractual.
-  * Rojo (> 100%): Sobre-ejecución o desvío presupuestario.
-- **Cálculo de Saldos**: Informa con exactitud cuánto falta abonar a cada contratista para cerrar su contrato.
+### 5. MÓDULO 3: PRESUPUESTO, CONTROL DE DESVÍOS & AUTO-CALIBRACIÓN DE RUBROS
+- **Comparativa Presupuestado vs. Real**: Monitoreo en tiempo real del gasto ejecutado frente a la meta asignada.
+- **Precio y Desvío por Metro Cuadrado (u$s / m²)**: Cálculo automático del costo unitario presupuestado vs. costo unitario real ejecutado según la superficie total (m²).
+- **Parámetros de Auto-calibración de Rubros**:
+  Para distribuir el Presupuesto Meta Total en Dólares (u$s) entre los rubros de egreso, el sistema utiliza una matriz de ponderación estándar de la industria:
+  * **Materiales e Insumos (MAT)**: ~35% (hierros, cemento, áridos, corralón)
+  * **Mano de Obra & Contratistas (MO)**: ~35% (albañilería, demolición, gremios)
+  * **Estructura & Hormigón (ESTR)**: ~15%
+  * **Honorarios Profesionales (HON)**: ~10% (dirección técnica, proyecto)
+  * **Aberturas & Carpintería (ABER)**: ~8% (aluminio, aberturas, carpinterías)
+  * **Instalación Sanitaria / Gas (SAN/PLO)**: ~8% (plomería, gas, sanitarios)
+  * **Pisos & Revestimientos (PIS)**: ~8% (porcelanatos, revestimientos)
+  * **Instalación Eléctrica (ELEC)**: ~7% (materiales eléctricos e iluminación)
+  * **Pintura & Terminaciones (PINT)**: ~6% (pintura integral, yesería)
+  * **Fletes & Volquetes (FLET/LOG)**: ~5% (logística y retiro de escombros)
+  * **Permisos & Tasas Municipales (PERM)**: ~5% (derechos de construcción)
+  * **Gastos Generales / Varios (GEN)**: ~5%
+- **Fórmula de Normalización y Conversión**:
+  1. Normaliza los coeficientes al 100% según los rubros activos de la empresa.
+  2. Presupuesto Rubro (u$s) = Presupuesto Total Obra (u$s) * (Peso Rubro / Suma de Pesos Activos).
+  3. Presupuesto Rubro (ARS) = Presupuesto Rubro (u$s) * Tipo de Cambio de Referencia.
+  4. Ajuste manual: Cada rubro queda editable individualmente en la matriz.
 
 ---
 
@@ -96,9 +106,9 @@ Esta plataforma es una solución integral para el control de **Origen y Aplicaci
 ---
 
 ### 7. HERRAMIENTAS ADICIONALES
-- **Conversor de Divisas Rápido**: Simulador interactivo en el encabezado para calcular cotizaciones bilaterales.
 - **Exportación a Excel**: Genera reportes en formato .xlsx listos para auditorías contables.
 - **Plan de Cuentas**: Administración en el Back para crear nuevos rubros, contratistas o códigos contables.
+- **Auditoría & Trazabilidad**: Registro cronológico de todas las altas, modificaciones y calibraciones de obras.
 
 ---
 *Desarrollado para JPB SRL - Control Financiero & Gestión de Obras*
@@ -369,21 +379,119 @@ Esta plataforma es una solución integral para el control de **Origen y Aplicaci
             </div>
           </div>
 
-          {/* Section 4: Presupuesto y Desvíos */}
-          <div className="space-y-3">
+          {/* Section 4: Presupuesto, Desvíos y Auto-calibración de Rubros */}
+          <div className="space-y-4">
             <h2 className="text-lg font-bold text-rose-400 flex items-center gap-2 border-b border-slate-800 pb-2 print:text-rose-700">
-              <span>4. Control de Presupuesto y Desvíos</span>
+              <Sparkles className="h-5 w-5 text-amber-400" />
+              <span>4. Control de Presupuesto, Desvíos & Auto-Calibración de Rubros</span>
             </h2>
-            <div className="text-xs text-slate-300 print:text-slate-700 space-y-2">
+            <div className="text-xs text-slate-300 print:text-slate-700 space-y-3">
               <p>
-                En la pestaña <strong>Presupuesto & Desvíos</strong> se puede supervisar con exactitud el estado de cada contrato:
+                En la pestaña <strong>Presupuesto vs. Real & Desvíos</strong> se monitorea la salud financiera en moneda dura (<strong>u$s USD</strong>) y el costo unitario por metro cuadrado (<strong>u$s / m²</strong>):
               </p>
               <ul className="list-disc list-inside space-y-1 text-slate-400 print:text-slate-600">
-                <li><strong>Presupuestado:</strong> Monto acordado inicialmente con el contratista.</li>
-                <li><strong>Ejecutado (Pagado):</strong> Suma de pagos efectuados hasta la fecha.</li>
-                <li><strong>Saldo Pendiente:</strong> Dinero que resta por abonar al contratista para completar el presupuesto.</li>
-                <li><strong>Semáforo de Desvíos:</strong> Señaliza cuando un rubro está cerca o supera el presupuesto asignado.</li>
+                <li><strong>Presupuesto Meta (u$s):</strong> Objetivo económico general fijado al dar de alta la obra.</li>
+                <li><strong>Costo Real Ejecutado (u$s):</strong> Suma consolidada de los comprobantes y pagos efectuados.</li>
+                <li><strong>Desvío Neto (u$s):</strong> Diferencia entre lo ejecutado y lo presupuestado, alertando sobrecostos.</li>
+                <li><strong>Precio por m² Presupuestado vs. Real:</strong> Ratio unitario calculado automáticamente sobre la superficie de la obra.</li>
               </ul>
+
+              {/* Explanatory Box: Parámetros de Auto-calibración */}
+              <div className="p-4 bg-slate-800/60 print:bg-slate-50 border border-slate-700/70 print:border-slate-300 rounded-xl space-y-3">
+                <div className="flex items-center gap-2 text-amber-400 print:text-amber-700 font-bold text-sm">
+                  <Calculator className="h-4 w-4" />
+                  <span>¿Qué parámetros toma el sistema para la Auto-Calibración de Rubros?</span>
+                </div>
+                <p className="text-slate-300 print:text-slate-700 leading-relaxed">
+                  Cuando se da de alta una obra con un presupuesto meta en dólares, o al pulsar el botón <strong>"Auto-calibrar Rubros"</strong>, el sistema distribuye el monto total entre los rubros activos de tipo egreso aplicando la siguiente <strong>matriz de ponderación estándar de la industria de la construcción</strong>:
+                </p>
+
+                <div className="border border-slate-700/80 print:border-slate-300 rounded-lg overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900/90 print:bg-slate-200 text-slate-200 print:text-slate-800 font-bold">
+                      <tr>
+                        <th className="p-2">Rubro / Categoría</th>
+                        <th className="p-2">Códigos & Palabras Clave</th>
+                        <th className="p-2 text-right">Peso Estimado</th>
+                        <th className="p-2">Destino Típico</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 print:divide-slate-200 text-slate-300 print:text-slate-700">
+                      <tr>
+                        <td className="p-2 font-bold text-slate-100 print:text-slate-900">Materiales e Insumos</td>
+                        <td className="p-2 font-mono text-[11px] text-slate-400">MAT, Materiales, Áridos, Corralón</td>
+                        <td className="p-2 text-right font-bold text-amber-400 print:text-amber-700">~ 35%</td>
+                        <td className="p-2 text-slate-400 print:text-slate-600">Cemento, hierros, arena, ladrillos</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 font-bold text-slate-100 print:text-slate-900">Mano de Obra & Gremios</td>
+                        <td className="p-2 font-mono text-[11px] text-slate-400">MO, Albañilería, Demolición</td>
+                        <td className="p-2 text-right font-bold text-amber-400 print:text-amber-700">~ 35%</td>
+                        <td className="p-2 text-slate-400 print:text-slate-600">Contratistas, cuadrillas y jornales</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 font-bold text-slate-100 print:text-slate-900">Estructura & Hormigón</td>
+                        <td className="p-2 font-mono text-[11px] text-slate-400">ESTR, Estructura, Hormigón</td>
+                        <td className="p-2 text-right font-bold text-emerald-400 print:text-emerald-700">~ 15%</td>
+                        <td className="p-2 text-slate-400 print:text-slate-600">Hormigón elaborado, bases y losas</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 font-bold text-slate-100 print:text-slate-900">Honorarios Profesionales</td>
+                        <td className="p-2 font-mono text-[11px] text-slate-400">HON, Dirección, Proyecto</td>
+                        <td className="p-2 text-right font-bold text-blue-400 print:text-blue-700">~ 10%</td>
+                        <td className="p-2 text-slate-400 print:text-slate-600">Arquitectura, cálculo, agrimensura</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 font-bold text-slate-100 print:text-slate-900">Aberturas & Carpintería</td>
+                        <td className="p-2 font-mono text-[11px] text-slate-400">ABER, Abertura, Aluminio</td>
+                        <td className="p-2 text-right font-bold text-slate-300">~ 8%</td>
+                        <td className="p-2 text-slate-400 print:text-slate-600">Ventanas DVH, puertas, portones</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 font-bold text-slate-100 print:text-slate-900">Instalación Sanitaria / Gas</td>
+                        <td className="p-2 font-mono text-[11px] text-slate-400">SAN, PLO, Plomería, Gas</td>
+                        <td className="p-2 text-right font-bold text-slate-300">~ 8%</td>
+                        <td className="p-2 text-slate-400 print:text-slate-600">Cañerías, tanques, termofusión</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 font-bold text-slate-100 print:text-slate-900">Pisos & Revestimientos</td>
+                        <td className="p-2 font-mono text-[11px] text-slate-400">PIS, Revestimiento, Cerámico</td>
+                        <td className="p-2 text-right font-bold text-slate-300">~ 8%</td>
+                        <td className="p-2 text-slate-400 print:text-slate-600">Porcelanatos, zócalos y pegamentos</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 font-bold text-slate-100 print:text-slate-900">Instalación Eléctrica</td>
+                        <td className="p-2 font-mono text-[11px] text-slate-400">ELEC, Electricidad</td>
+                        <td className="p-2 text-right font-bold text-slate-300">~ 7%</td>
+                        <td className="p-2 text-slate-400 print:text-slate-600">Cables, tableros, térmicas</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 font-bold text-slate-100 print:text-slate-900">Pintura & Terminaciones</td>
+                        <td className="p-2 font-mono text-[11px] text-slate-400">PINT, Pintura, Yeso</td>
+                        <td className="p-2 text-right font-bold text-slate-300">~ 6%</td>
+                        <td className="p-2 text-slate-400 print:text-slate-600">Látex, impermeabilizantes, enduido</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 font-bold text-slate-100 print:text-slate-900">Fletes, Logística & Permisos</td>
+                        <td className="p-2 font-mono text-[11px] text-slate-400">FLET, LOG, PERM, Tasas</td>
+                        <td className="p-2 text-right font-bold text-slate-300">~ 5% c/u</td>
+                        <td className="p-2 text-slate-400 print:text-slate-600">Volquetes, derechos municipales</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-[11px]">
+                  <div className="p-2.5 bg-slate-900/60 print:bg-slate-100 rounded-lg border border-slate-700/60 print:border-slate-200">
+                    <span className="font-bold text-amber-300 print:text-amber-800 block mb-0.5">1. Normalización Matemática al 100%</span>
+                    <span className="text-slate-400 print:text-slate-600">El sistema totaliza los coeficientes de las categorías activas y normaliza la suma para que coincida exactamente con el 100% del Presupuesto Meta.</span>
+                  </div>
+                  <div className="p-2.5 bg-slate-900/60 print:bg-slate-100 rounded-lg border border-slate-700/60 print:border-slate-200">
+                    <span className="font-bold text-emerald-300 print:text-emerald-800 block mb-0.5">2. Edición Libre y Ajuste Fino</span>
+                    <span className="text-slate-400 print:text-slate-600">Tras la calibración, el usuario puede editar manualmente el monto en dólares de cualquier rubro pulsando el ícono de edición de la tabla.</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

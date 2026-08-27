@@ -84,6 +84,35 @@ export async function initializeFirestoreData(): Promise<void> {
       }, { merge: true });
     }
 
+    // Ensure newly requested proj-350m project and its initial data exist in Firestore
+    try {
+      const p350Ref = doc(db, COLLECTIONS.PROJECTS, 'proj-350m');
+      const p350Snap = await getDoc(p350Ref);
+      if (!p350Snap.exists()) {
+        const p350 = INITIAL_PROJECTS.find((p) => p.id === 'proj-350m');
+        if (p350) {
+          console.log('Seeding new 350m2 project into Firestore...');
+          await setDoc(p350Ref, p350);
+
+          const p350Budgets = INITIAL_BUDGETS.filter((b) => b.projectId === 'proj-350m');
+          if (p350Budgets.length > 0) {
+            const bBatch = writeBatch(db);
+            p350Budgets.forEach((b) => bBatch.set(doc(db, COLLECTIONS.BUDGETS, b.id), b));
+            await bBatch.commit();
+          }
+
+          const p350Txs = INITIAL_TRANSACTIONS.filter((t) => t.projectId === 'proj-350m');
+          if (p350Txs.length > 0) {
+            const tBatch = writeBatch(db);
+            p350Txs.forEach((t) => tBatch.set(doc(db, COLLECTIONS.TRANSACTIONS, t.id), t));
+            await tBatch.commit();
+          }
+        }
+      }
+    } catch (seedErr) {
+      console.warn('Note on seeding proj-350m:', seedErr);
+    }
+
     // Ensure Master Superadmin profile and auth account exists for fernandoj.laso@gmail.com
     const superEmail = 'fernandoj.laso@gmail.com';
     const superUid = 'superadmin_master_' + superEmail.replace(/[^a-zA-Z0-9]/g, '_');

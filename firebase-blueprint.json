@@ -12,6 +12,7 @@
         "client": { "type": "string" },
         "status": { "type": "string", "enum": ["active", "completed", "on-hold"] },
         "startDate": { "type": "string" },
+        "totalM2": { "type": "number", "description": "Metros totales de construcción en m2" },
         "budgetARS": { "type": "number" },
         "budgetUSD": { "type": "number" },
         "defaultExchangeRate": { "type": "number" },
