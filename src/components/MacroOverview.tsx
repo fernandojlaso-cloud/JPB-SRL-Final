@@ -28,6 +28,7 @@ import {
 import { Project, AccountCategory, BudgetEstimate, Transaction, Currency } from '../types';
 import { formatCurrency } from '../utils/formatters';
 import { JpbSrlLogo } from './JpbSrlLogo';
+import { useAuth } from '../contexts/AuthContext';
 
 interface MacroOverviewProps {
   projects: Project[];
@@ -52,6 +53,8 @@ export const MacroOverview: React.FC<MacroOverviewProps> = ({
   onEditProject,
   onDeleteProject,
 }) => {
+  const { canManageObras } = useAuth();
+
   // Aggregate stats per project
   const projectStats = useMemo(() => {
     return projects.map((p) => {
@@ -123,13 +126,15 @@ export const MacroOverview: React.FC<MacroOverviewProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={onNewProject}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition transform active:scale-95"
-        >
-          <Building2 className="h-4 w-4" />
-          <span>+ Agregar Nueva Obra</span>
-        </button>
+        {canManageObras && (
+          <button
+            onClick={onNewProject}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition transform active:scale-95 cursor-pointer"
+          >
+            <Building2 className="h-4 w-4" />
+            <span>+ Agregar Nueva Obra</span>
+          </button>
+        )}
       </div>
 
       {/* Global Macro KPI Cards */}
@@ -250,13 +255,15 @@ export const MacroOverview: React.FC<MacroOverviewProps> = ({
             <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 mb-4">
               Aún no se han creado frentes de obra o han sido eliminados. Puedes crear una nueva obra o importar datos desde una planilla Excel.
             </p>
-            <button
-              onClick={onNewProject}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow transition"
-            >
-              <Building2 className="h-4 w-4" />
-              <span>+ Crear Primera Obra</span>
-            </button>
+            {canManageObras && (
+              <button
+                onClick={onNewProject}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow transition cursor-pointer"
+              >
+                <Building2 className="h-4 w-4" />
+                <span>+ Crear Primera Obra</span>
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -345,7 +352,7 @@ export const MacroOverview: React.FC<MacroOverviewProps> = ({
                     <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2">
                       <span>{p.txCount} movimientos</span>
                       <div className="flex items-center gap-2">
-                        {onEditProject && (
+                        {canManageObras && onEditProject && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -353,13 +360,13 @@ export const MacroOverview: React.FC<MacroOverviewProps> = ({
                               const rawProj = projects.find(pr => pr.id === p.id);
                               if (rawProj) onEditProject(rawProj);
                             }}
-                            className="p-1 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded transition"
+                            className="p-1 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded transition cursor-pointer"
                             title="Editar obra"
                           >
                             <Edit2 className="h-3.5 w-3.5" />
                           </button>
                         )}
-                        {onDeleteProject && (
+                        {canManageObras && onDeleteProject && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -368,7 +375,7 @@ export const MacroOverview: React.FC<MacroOverviewProps> = ({
                                 onDeleteProject(p.id);
                               }
                             }}
-                            className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition"
+                            className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition cursor-pointer"
                             title="Eliminar obra"
                           >
                             <Trash2 className="h-3.5 w-3.5" />

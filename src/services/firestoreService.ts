@@ -422,11 +422,33 @@ export function subscribeToUsers(callback: (users: any[]) => void) {
   });
 }
 
+const MASTER_SUPERADMIN_EMAIL = 'fernandoj.laso@gmail.com';
+
 export async function updateUserProfileInFirestore(uid: string, updates: Record<string, any>): Promise<void> {
+  const userDoc = await getDoc(doc(db, COLLECTIONS.USERS, uid));
+  if (userDoc.exists()) {
+    const data = userDoc.data();
+    if (data?.email?.toLowerCase() === MASTER_SUPERADMIN_EMAIL.toLowerCase()) {
+      // Protect superadmin role and active status
+      if (updates.role && updates.role !== 'superadmin') {
+        throw new Error('No está permitido modificar el rol del Super Administrador Maestro.');
+      }
+      if (updates.status && updates.status !== 'active') {
+        throw new Error('No está permitido revocar el acceso al Super Administrador Maestro.');
+      }
+    }
+  }
   await updateDoc(doc(db, COLLECTIONS.USERS, uid), updates);
 }
 
 export async function deleteUserFromFirestore(uid: string): Promise<void> {
+  const userDoc = await getDoc(doc(db, COLLECTIONS.USERS, uid));
+  if (userDoc.exists()) {
+    const data = userDoc.data();
+    if (data?.email?.toLowerCase() === MASTER_SUPERADMIN_EMAIL.toLowerCase()) {
+      throw new Error('No se puede eliminar la cuenta del Super Administrador.');
+    }
+  }
   await deleteDoc(doc(db, COLLECTIONS.USERS, uid));
 }
 

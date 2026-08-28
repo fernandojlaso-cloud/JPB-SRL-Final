@@ -163,7 +163,6 @@ function MainDashboard() {
     }
     if (isComitente) {
       const assigned = userProfile?.assignedProjectIds || [];
-      if (assigned.length === 0) return projects;
       return projects.filter(p => assigned.includes(p.id));
     }
     return projects;

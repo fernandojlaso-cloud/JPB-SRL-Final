@@ -19,11 +19,14 @@ import {
   AlertTriangle,
   CheckSquare,
   Square,
-  FileText
+  FileText,
+  Lock,
+  ShieldAlert
 } from 'lucide-react';
 import { AccountCategory, Project, TransactionType } from '../types';
 import { formatCurrency } from '../utils/formatters';
 import { STANDARD_CONSTRUCTION_CATEGORIES } from '../data/initialData';
+import { useAuth } from '../contexts/AuthContext';
 
 interface AccountsAdminTabProps {
   categories: AccountCategory[];
@@ -50,6 +53,7 @@ export const AccountsAdminTab: React.FC<AccountsAdminTabProps> = ({
   onDeleteProject,
   onOpenProjectModal,
 }) => {
+  const { canManageObras, isSuperAdmin, isDirector } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState<'categories' | 'projects'>('projects');
   const [categoryTypeFilter, setCategoryTypeFilter] = useState<TransactionType>('egreso');
 
@@ -222,7 +226,9 @@ export const AccountsAdminTab: React.FC<AccountsAdminTabProps> = ({
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Gestiona, edita o elimina Obras Activas y configura el Plan de Cuentas bimonetario para Origen y Aplicación de Fondos.
+            {canManageObras
+              ? 'Gestiona, edita o elimina Obras Activas y configura el Plan de Cuentas bimonetario para Origen y Aplicación de Fondos.'
+              : 'Consulta el estado de las Obras Activas y administra el Plan de Cuentas bimonetario para Origen y Aplicación de Fondos.'}
           </p>
         </div>
 
@@ -273,13 +279,20 @@ export const AccountsAdminTab: React.FC<AccountsAdminTabProps> = ({
               </span>
             </div>
 
-            <button
-              onClick={() => onOpenProjectModal()}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition"
-            >
-              <Plus className="h-4 w-4" />
-              <span>+ Nueva Obra</span>
-            </button>
+            {canManageObras ? (
+              <button
+                onClick={() => onOpenProjectModal()}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition"
+              >
+                <Plus className="h-4 w-4" />
+                <span>+ Nueva Obra</span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-950/80 border border-slate-800 text-slate-400 rounded-xl text-xs font-medium">
+                <Lock className="h-3.5 w-3.5 text-amber-400" />
+                <span>Solo Consulta (Edición exclusiva del Director)</span>
+              </div>
+            )}
           </div>
 
           {/* Projects Cards Grid */}
@@ -307,23 +320,26 @@ export const AccountsAdminTab: React.FC<AccountsAdminTabProps> = ({
                         {p.status === 'active' ? '🟢 En Ejecución' : p.status === 'completed' ? '⚪ Finalizada' : '🟡 En Pausa'}
                       </span>
 
-                      {/* Edit Button */}
-                      <button
-                        onClick={() => onOpenProjectModal(p)}
-                        className="p-1.5 bg-slate-800 hover:bg-amber-500/20 hover:text-amber-400 text-slate-300 rounded-lg transition border border-slate-700 hover:border-amber-500/40"
-                        title="Editar datos de la obra"
-                      >
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </button>
+                      {/* Edit & Delete Buttons (Director Only) */}
+                      {canManageObras && (
+                        <>
+                          <button
+                            onClick={() => onOpenProjectModal(p)}
+                            className="p-1.5 bg-slate-800 hover:bg-amber-500/20 hover:text-amber-400 text-slate-300 rounded-lg transition border border-slate-700 hover:border-amber-500/40"
+                            title="Editar datos de la obra"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
 
-                      {/* Delete Button */}
-                      <button
-                        onClick={() => setProjectToDelete(p)}
-                        className="p-1.5 bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 rounded-lg transition border border-slate-700 hover:border-rose-500/40"
-                        title="Eliminar obra"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                          <button
+                            onClick={() => setProjectToDelete(p)}
+                            className="p-1.5 bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 rounded-lg transition border border-slate-700 hover:border-rose-500/40"
+                            title="Eliminar obra"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -370,22 +386,29 @@ export const AccountsAdminTab: React.FC<AccountsAdminTabProps> = ({
                     Inicio: {p.startDate || 'No informado'}
                   </span>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => onOpenProjectModal(p)}
-                      className="px-2.5 py-1 text-xs font-semibold text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition flex items-center gap-1"
-                    >
-                      <Edit2 className="h-3 w-3" />
-                      <span>Editar</span>
-                    </button>
-                    <button
-                      onClick={() => setProjectToDelete(p)}
-                      className="px-2.5 py-1 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition flex items-center gap-1"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      <span>Borrar</span>
-                    </button>
-                  </div>
+                  {canManageObras ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => onOpenProjectModal(p)}
+                        className="px-2.5 py-1 text-xs font-semibold text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition flex items-center gap-1"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                        <span>Editar</span>
+                      </button>
+                      <button
+                        onClick={() => setProjectToDelete(p)}
+                        className="px-2.5 py-1 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition flex items-center gap-1"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        <span>Borrar</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-slate-500 italic flex items-center gap-1">
+                      <Lock className="h-3 w-3 text-slate-600" />
+                      Solo Director
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
